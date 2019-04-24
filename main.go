@@ -27,23 +27,21 @@ func main() {
 		chartDir, chartValues, appName, targetEnv, appVersion)
 
 	kubernetes := kubernetesCoreV1()
+	deployColour := determineDeployColour(targetEnv, appName, kubernetes)
+	log.Printf("Determined deploy colour: %s", deployColour)
 
-	offlineServiceName := OfflineServiceName(targetEnv, appName)
-	log.Printf("Looking for the offline service: %s", offlineServiceName)
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+
 	for {
-		service, err := kubernetes.Services("default").Get(appName, metav1.GetOptions{})
-		if err != nil {
-			panic(err.Error())
-		}
 		// fmt.Printf("There are %d service in the cluster\n", len(service.Items))
-		log.Printf("%v", service)
-		// log.Printf("%v", service.Selector)
 		// Examples for error handling:
 		// - Use helper functions like e.g. errors.IsNotFound()
 		// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
 		namespace := "default"
 		pod := "example-xxxxx"
-		_, err = kubernetes.Pods(namespace).Get(pod, metav1.GetOptions{})
+		_, err := kubernetes.Pods(namespace).Get(pod, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
 		} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
@@ -118,4 +116,20 @@ func kubernetesCoreV1() v1.CoreV1Interface {
 	}
 	log.Println("Successfully created kubectl clientset")
 	return clientset.CoreV1()
+}
+
+func determineDeployColour(targetEnv, appName string, kubernetes v1.CoreV1Interface) string {
+	offlineServiceName := OfflineServiceName(targetEnv, appName)
+	log.Printf("Looking for the colour selector of the offline service: %s", offlineServiceName)
+	service, err := kubernetes.Services("default").Get(offlineServiceName, metav1.GetOptions{})
+	if err != nil || service == nil {
+		log.Printf("Offline service %s was not found, defaulting..", offlineServiceName)
+	} else if service.Spec.Selector == nil || len(service.Spec.Selector) == 0 {
+		if _, ok := service.Spec.Selector["colour"]; !ok {
+			log.Printf("Offline service %s was found but it had no colour selector, defaulting..", offlineServiceName)
+		} else {
+			log.Printf("Offline service %s was found but it had no selectors, defaulting..", offlineServiceName)
+		}
+	}
+	return ServiceSelectorColour(service, err)
 }
