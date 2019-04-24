@@ -29,12 +29,9 @@ func main() {
 	log.Println("Determining deploy colour..")
 	deployColour := determineDeployColour(targetEnv, appName, kubernetes)
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
+	deploymentName := DeploymentName(targetEnv, deployColour, appName)
+	log.Printf("Deploying: \033[32m%s\033[97m", deploymentName)
 
-	log.Printf("Deploying %s from %s to: %s-%s-%s", appVersion,
-		chartDir,
-		targetEnv,
-		deployColour,
-		appName)
 	// if err != nil {
 	// 	panic(err.Error())
 	// }
