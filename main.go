@@ -73,25 +73,28 @@ func parseCmdLineFlags() (string, string, string, string, string) {
 	targetEnv := flag.String("target-env", "", targetEnvUsage)
 	flag.Parse()
 	chartValues := fmt.Sprintf("%s/%s.yaml", *chartDir, *targetEnv)
-	invalidFlags := false
-	if *chartDir == "" || !IsDirectory(*chartDir) {
-		invalidFlags = true
+	invalidFlags := *chartDir == "" || !IsDirectory(*chartDir) || *appName == "" || !IsValidAppName(*appName) || *appVersion == "" || !IsValidAppVersion(*appVersion) || *targetEnv == "" || !IsValidTargetEnv(*targetEnv) || chartValues == "" || !FileExists(chartValues)
+	if *chartDir == "" {
+		log.Printf("Missing flag \033[32m-chart-dir\033[97m, must be \033[33m%s\033[97m", chartDirUsage)
+	} else if !IsDirectory(*chartDir) {
 		log.Printf("Invalid \033[32mchart-dir\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *chartDir, chartDirUsage)
 	}
-	if *appName == "" || !IsValidAppName(*appName) {
-		invalidFlags = true
+	if *appName == "" {
+		log.Printf("Missing flag \033[32m-app-name\033[97m, must be \033[33m%s\033[97m", appNameUsage)
+	} else if !IsValidAppName(*appName) {
 		log.Printf("Invalid \033[32mapp-name\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *appName, appNameUsage)
 	}
-	if *appVersion == "" || !IsValidAppVersion(*appVersion) {
-		invalidFlags = true
+	if *appVersion == "" {
+		log.Printf("Missing flag \033[32m-app-version\033[97m, must be \033[33m%s\033[97m", appVersionUsage)
+	} else if !IsValidAppVersion(*appVersion) {
 		log.Printf("Invalid \033[32mapp-version\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *appVersion, appVersionUsage)
 	}
-	if *targetEnv == "" || !IsValidTargetEnv(*targetEnv) {
-		invalidFlags = true
+	if *targetEnv == "" {
+		log.Printf("Missing flag \033[32m-target-env\033[97m, must be \033[33m%s\033[97m", targetEnvUsage)
+	} else if !IsValidTargetEnv(*targetEnv) {
 		log.Printf("Invalid \033[32mtarget-env\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *targetEnv, targetEnvUsage)
 	}
-	if chartValues == "" || !FileExists(chartValues) {
-		invalidFlags = true
+	if !FileExists(chartValues) {
 		log.Printf("Expected to find chart values yaml at: \033[31m%s\033[97m, but found nothing.", chartValues)
 	}
 	if invalidFlags {
