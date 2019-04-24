@@ -1,6 +1,7 @@
 package main
 
 import (
+	// "k8s.io/helm/pkg/helm/portforwarder"
 	"flag"
 	"fmt"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -8,6 +9,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/rest"
+	"k8s.io/helm/pkg/helm"
 	"log"
 	"os"
 	"time"
@@ -31,10 +34,7 @@ func main() {
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
 	deploymentName := DeploymentName(targetEnv, deployColour, appName)
 	log.Printf("Deploying: \033[32m%s\033[97m", deploymentName)
-
-	// if err != nil {
-	// 	panic(err.Error())
-	// }
+	helmClient()
 
 	for {
 		// fmt.Printf("There are %d service in the cluster\n", len(service.Items))
@@ -121,6 +121,70 @@ func kubernetesCoreV1() v1.CoreV1Interface {
 	}
 	log.Println("Successfully created kubectl clientset")
 	return clientset.CoreV1()
+}
+
+func helmClient() *helm.Client {
+	homeDir := homeDir()
+	log.Printf("Using home dir: \033[32m%s\033[97m", homeDir)
+
+	kubeConfigPath := KubeConfigPath(homeDir)
+	log.Printf("Derived kubeconfig path: \033[32m%s\033[97m", kubeConfigPath)
+
+	config := KubeConfig(kubeConfigPath)
+	log.Printf("Successfully found kubeconfig at: \033[32m%s\033[97m", kubeConfigPath)
+	helmHost := fmt.Sprintf("%s", config.Host)
+	log.Printf("Using host \033[32m%s\033[97m from config to connect with Helm..", helmHost)
+
+	helmClient := helm.NewClient(helm.Host(helmHost), helm.ConnectTimeout(60))
+	log.Println("made client")
+	setupConnection()
+	releases, err := helmClient.ListReleases()
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Printf("%v", releases)
+	return helmClient
+}
+
+func setupConnection() (string, error) {
+	// config, client, err := getKubeClient()
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// tillerTunnel, err = portforwarder.New("kube-system", client, config)
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	tillerHost := ""
+	// tillerHost := fmt.Sprintf("127.0.0.1:%d", tillerTunnel.Local)
+	// log.Printf("Created tunnel using local port: '%d'\n", tillerTunnel.Local)
+
+	// Set up the gRPC config.
+	log.Printf("SERVER: %q\n", tillerHost)
+
+	// Plugin support.
+	return tillerHost, nil
+}
+
+// getKubeClient creates a Kubernetes config and client for a given kubeconfig context.
+func getKubeClient() (*rest.Config, kubernetes.Interface, error) {
+	homeDir := homeDir()
+	log.Printf("Using home dir: \033[32m%s\033[97m", homeDir)
+
+	kubeConfigPath := KubeConfigPath(homeDir)
+	log.Printf("Derived kubeconfig path: \033[32m%s\033[97m", kubeConfigPath)
+
+	config := KubeConfig(kubeConfigPath)
+	log.Printf("Successfully found kubeconfig at: \033[32m%s\033[97m", kubeConfigPath)
+
+	log.Println("Creating kubectl clientset..")
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not get Kubernetes client: %s", err)
+	}
+	return config, client, nil
 }
 
 func determineDeployColour(targetEnv, appName string, kubernetes v1.CoreV1Interface) string {
