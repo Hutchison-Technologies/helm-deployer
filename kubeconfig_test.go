@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-func TestKubeConfigPathPanicsWhenHomeEmpty(t *testing.T) {
+func Test_KubeConfigPath_Panics_When_Home_Empty(t *testing.T) {
 	assert.Panics(t, func() { KubeConfigPath("") })
 }
 
-func TestKubeConfigPanicsWhenFileDoesNotExist(t *testing.T) {
+func Test_KubeConfig_Panics_When_File_Does_Not_Exist(t *testing.T) {
 	assert.Panics(t, func() { KubeConfig("/some/nonexistent/file/path") })
 }

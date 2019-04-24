@@ -9,29 +9,29 @@ import (
 	"testing"
 )
 
-func TestOfflineServiceNameReturnsValidAppName(t *testing.T) {
+func Test_OfflineServiceName_Returns_Valid_AppName(t *testing.T) {
 	assert.True(t, IsValidAppName(OfflineServiceName("prod", "some-api")))
 }
 
-func TestOfflineServiceNameReturnsNamePrefixedWithTargetEnv(t *testing.T) {
+func Test_OfflineServiceName_Returns_Name_Prefixed_With_TargetEnv(t *testing.T) {
 	targetEnv := "prod"
 	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf("^%s-.*", targetEnv)), OfflineServiceName(targetEnv, "some-api"))
 }
 
-func TestOfflineServiceNameReturnsNameContainingAppName(t *testing.T) {
+func Test_OfflineServiceName_Returns_Name_Containing_AppName(t *testing.T) {
 	appName := "some-api"
 	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf(".*-%s-.*", appName)), OfflineServiceName("prod", appName))
 }
 
-func TestOfflineServiceNameReturnsNameAffixedWithOffline(t *testing.T) {
+func Test_OfflineServiceName_Returns_Name_Affixed_With_Offline(t *testing.T) {
 	assert.Regexp(t, regexp.MustCompile(".*-offline$"), OfflineServiceName("prod", "some-api"))
 }
 
-func TestServiceSelectorColourReturnsBlueWhenGivenNilService(t *testing.T) {
+func Test_ServiceSelectorColour_Returns_Blue_When_Given_Nil_Service(t *testing.T) {
 	assert.Equal(t, "blue", ServiceSelectorColour(nil, nil))
 }
 
-func TestServiceSelectorColourReturnsBlueWhenGivenError(t *testing.T) {
+func Test_ServiceSelectorColour_Returns_Blue_When_Given_Error(t *testing.T) {
 	assert.Equal(t, "blue", ServiceSelectorColour(&corev1.Service{
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
@@ -41,7 +41,7 @@ func TestServiceSelectorColourReturnsBlueWhenGivenError(t *testing.T) {
 	}, errors.New("something pooped")))
 }
 
-func TestServiceSelectorColourReturnsBlueWhenGivenServiceHasNoColour(t *testing.T) {
+func Test_ServiceSelectorColour_Returns_Blue_When_Given_Service_Has_No_Colour(t *testing.T) {
 	assert.Equal(t, "blue", ServiceSelectorColour(&corev1.Service{
 		Spec: corev1.ServiceSpec{
 			Selector: map[string]string{
@@ -51,17 +51,17 @@ func TestServiceSelectorColourReturnsBlueWhenGivenServiceHasNoColour(t *testing.
 	}, nil))
 }
 
-func TestServiceSelectorColourReturnsBlueWhenGivenServiceHasNoSelectors(t *testing.T) {
+func Test_ServiceSelectorColour_Returns_Blue_When_Given_Service_Has_No_Selectors(t *testing.T) {
 	assert.Equal(t, "blue", ServiceSelectorColour(&corev1.Service{
 		Spec: corev1.ServiceSpec{},
 	}, nil))
 }
 
-func TestServiceSelectorColourReturnsBlueWhenGivenServiceHasNoSpec(t *testing.T) {
+func Test_ServiceSelectorColour_Returns_Blue_When_Given_Service_Has_No_Spec(t *testing.T) {
 	assert.Equal(t, "blue", ServiceSelectorColour(&corev1.Service{}, nil))
 }
 
-func TestServiceSelectorColourReturnsGreenWhenGivenServiceHasGreenSelector(t *testing.T) {
+func Test_ServiceSelectorColour_Returns_Green_When_Given_Service_Has_Green_Selector(t *testing.T) {
 	selectorColour := "green"
 	assert.Equal(t, selectorColour, ServiceSelectorColour(&corev1.Service{
 		Spec: corev1.ServiceSpec{
