@@ -17,24 +17,27 @@ func main() {
 	log.Println("Beginning deployment")
 
 	chartDir, chartValues, appName, targetEnv, appVersion := parseCmdLineFlags()
-	log.Println(
-		fmt.Sprintf(
-			`Preparing to deploy using these variables:
+	log.Printf(
+		`Preparing to deploy using these variables:
 			chartDir: %s
 			chartValues: %s
 			appName: %s
 			targetEnv: %s
 			appVersion: %s`,
-			chartDir, chartValues, appName, targetEnv, appVersion))
+		chartDir, chartValues, appName, targetEnv, appVersion)
 
 	kubernetes := kubernetesCoreV1()
+
+	offlineServiceName := OfflineServiceName(targetEnv, appName)
+	log.Printf("Looking for the offline service: %s", offlineServiceName)
 	for {
-		services, err := kubernetes.Services("default").Get(appName, metav1.GetOptions{})
+		service, err := kubernetes.Services("default").Get(appName, metav1.GetOptions{})
 		if err != nil {
 			panic(err.Error())
 		}
-		// fmt.Printf("There are %d services in the cluster\n", len(services.Items))
-		log.Println(fmt.Sprintf("%v", services))
+		// fmt.Printf("There are %d service in the cluster\n", len(service.Items))
+		log.Printf("%v", service)
+		// log.Printf("%v", service.Selector)
 		// Examples for error handling:
 		// - Use helper functions like e.g. errors.IsNotFound()
 		// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
@@ -70,23 +73,23 @@ func parseCmdLineFlags() (string, string, string, string, string) {
 	invalidFlags := false
 	if *chartDir == "" || !IsDirectory(*chartDir) {
 		invalidFlags = true
-		log.Println(fmt.Sprintf("Invalid chart-dir: %s, must be %s", *chartDir, chartDirUsage))
+		log.Printf("Invalid chart-dir: %s, must be %s", *chartDir, chartDirUsage)
 	}
 	if *appName == "" || !IsValidAppName(*appName) {
 		invalidFlags = true
-		log.Println(fmt.Sprintf("Invalid app-name: %s, must be %s", *appName, appNameUsage))
+		log.Printf("Invalid app-name: %s, must be %s", *appName, appNameUsage)
 	}
 	if *appVersion == "" || !IsValidAppVersion(*appVersion) {
 		invalidFlags = true
-		log.Println(fmt.Sprintf("Invalid app-version: %s, must be %s", *appVersion, appVersionUsage))
+		log.Printf("Invalid app-version: %s, must be %s", *appVersion, appVersionUsage)
 	}
 	if *targetEnv == "" || !IsValidTargetEnv(*targetEnv) {
 		invalidFlags = true
-		log.Println(fmt.Sprintf("Invalid target-env: %s, must be %s", *targetEnv, targetEnvUsage))
+		log.Printf("Invalid target-env: %s, must be %s", *targetEnv, targetEnvUsage)
 	}
 	if chartValues == "" || !FileExists(chartValues) {
 		invalidFlags = true
-		log.Println(fmt.Sprintf("Expected to find chart values yaml at: %s, but found nothing.", chartValues))
+		log.Printf("Expected to find chart values yaml at: %s, but found nothing.", chartValues)
 	}
 	if invalidFlags {
 		panic("Invalid flag supplied, see log.")
@@ -100,13 +103,13 @@ func homeDir() string {
 
 func kubernetesCoreV1() v1.CoreV1Interface {
 	homeDir := homeDir()
-	log.Println(fmt.Sprintf("Using home dir: %s", homeDir))
+	log.Printf("Using home dir: %s", homeDir)
 
 	kubeConfigPath := KubeConfigPath(homeDir)
-	log.Println(fmt.Sprintf("Derived kubeconfig path: %s", kubeConfigPath))
+	log.Printf("Derived kubeconfig path: %s", kubeConfigPath)
 
 	config := KubeConfig(kubeConfigPath)
-	log.Println(fmt.Sprintf("Successfully found kubeconfig at: %s", kubeConfigPath))
+	log.Printf("Successfully found kubeconfig at: %s", kubeConfigPath)
 
 	log.Println("Creating kubectl clientset..")
 	clientset, err := kubernetes.NewForConfig(config)
