@@ -86,6 +86,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:67f5c19d64f788aa79a8e612eefa1cc68dca46c3436c93b84af9c95bd7e1a556"
+  name = "github.com/aryann/difflib"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e206f873d14a916d3d26c40ab667bca123f365a3"
+
+[[projects]]
+  branch = "master"
   digest = "1:95e08278c876d185ba67533f045e9e63b3c9d02cbd60beb0f4dbaa2344a13ac2"
   name = "github.com/chai2010/gettext-go"
   packages = [
@@ -104,6 +112,17 @@
   pruneopts = "UT"
   revision = "a261ee33d7a517f054effbf451841abaafe3e0fd"
   version = "v0.2.2"
+
+[[projects]]
+  digest = "1:3560c2598ddb02c0e1ce0f668b6e8ba505f6e18f22143b4cc52a0efd191f0433"
+  name = "github.com/databus23/helm-diff"
+  packages = [
+    "diff",
+    "manifest",
+  ]
+  pruneopts = "UT"
+  revision = "77dc4f5b84e84692dac22a6fac76aa385d15c2b0"
+  version = "v2.11.0+1"
 
 [[projects]]
   digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
@@ -401,6 +420,30 @@
   ]
   pruneopts = "UT"
   revision = "1ea4449da9834f4d333f1cc461c374aea217d249"
+
+[[projects]]
+  digest = "1:2fa7b0155cd54479a755c629de26f888a918e13f8857a2c442205d825368e084"
+  name = "github.com/mattn/go-colorable"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3a70a971f94a22f2fa562ffcc7a0eb45f5daf045"
+  version = "v0.1.1"
+
+[[projects]]
+  digest = "1:e150b5fafbd7607e2d638e4e5cf43aa4100124e5593385147b0a74e2733d8b0d"
+  name = "github.com/mattn/go-isatty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c2a7a6ca930a4cd0bc33a3f298eb71960732a3a7"
+  version = "v0.0.7"
+
+[[projects]]
+  branch = "master"
+  digest = "1:2b32af4d2a529083275afc192d1067d8126b578c7a9613b26600e4df9c735155"
+  name = "github.com/mgutz/ansi"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "9520e82c474b0a04dd04f8a40959027271bab992"
 
 [[projects]]
   digest = "1:abf08734a6527df70ed361d7c369fb580e6840d8f7a6012e5f609fdfd93b4e48"
@@ -1122,9 +1165,10 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/databus23/helm-diff/diff",
+    "github.com/databus23/helm-diff/manifest",
     "github.com/stretchr/testify/assert",
     "k8s.io/api/core/v1",
-    "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/typed/core/v1",
@@ -1133,6 +1177,8 @@
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/helm/pkg/helm",
     "k8s.io/helm/pkg/helm/portforwarder",
+    "k8s.io/helm/pkg/proto/hapi/release",
+    "k8s.io/helm/pkg/storage/errors",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

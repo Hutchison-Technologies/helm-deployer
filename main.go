@@ -1,9 +1,12 @@
 package main
 
 import (
-	"flag"
+	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"github.com/Hutchison-Technologies/bluegreen-deployer/cli"
+	"github.com/databus23/helm-diff/diff"
+	"github.com/databus23/helm-diff/manifest"
+	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
@@ -11,21 +14,59 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/helm/portforwarder"
+	"k8s.io/helm/pkg/proto/hapi/release"
+	storageerrors "k8s.io/helm/pkg/storage/errors"
 	"log"
 	"os"
-	"time"
+	"strings"
 )
 
-func main() {
-	log.Println("Beginning deployment")
+var flags = []*cli.Flag{
+	&cli.Flag{
+		Key:         "chart-dir",
+		Default:     "./chart",
+		Description: "directory containing the service-to-be-deployed's chart definition.",
+		Validator:   IsDirectory,
+	},
+	&cli.Flag{
+		Key:         "app-name",
+		Default:     "",
+		Description: "name of the service-to-be-deployed (lower-case, alphanumeric + dashes).",
+		Validator:   IsValidAppName,
+	},
+	&cli.Flag{
+		Key:         "app-version",
+		Default:     "",
+		Description: "semantic version of the service-to-be-deployed (vX.X.X, or X.X.X).",
+		Validator:   IsValidAppVersion,
+	},
+	&cli.Flag{
+		Key:         "target-env",
+		Default:     "",
+		Description: "name of the environment in which to deploy the service (prod or staging).",
+		Validator:   IsValidTargetEnv,
+	},
+}
 
-	chartDir, chartValues, appName, targetEnv, appVersion := parseCmdLineFlags()
-	log.Println("Preparing to deploy using these variables:")
-	log.Printf("\tchartDir: \033[32m%s\033[97m", chartDir)
-	log.Printf("\tchartValues: \033[32m%s\033[97m", chartValues)
-	log.Printf("\tappName: \033[32m%s\033[97m", appName)
-	log.Printf("\ttargetEnv: \033[32m%s\033[97m", targetEnv)
-	log.Printf("\tappVersion: \033[32m%s\033[97m", appVersion)
+func main() {
+	log.Println("Beginning deployment..")
+
+	log.Println("Parsing CLI flags..")
+	cliFlags, flagsErr := cli.ParseFlags(flags)
+	if flagsErr != nil {
+		panic(flagsErr.Error())
+	}
+	log.Println("Successfully parsed CLI flags:")
+	reportMap(cliFlags)
+
+	chartDir, appName, targetEnv, _ := cliFlags["chart-dir"], cliFlags["app-name"], cliFlags["target-env"], cliFlags["app-version"]
+
+	log.Println("Locating chart values..")
+	chartValues, chartValuesErr := locateChartValues(chartDir, targetEnv)
+	if chartValuesErr != nil {
+		panic(chartValuesErr.Error())
+	}
+	log.Println("Successfully located chart values")
 
 	log.Println("Accessing kubernetes..")
 	kubernetes := kubernetesCoreV1()
@@ -33,71 +74,69 @@ func main() {
 	deployColour := determineDeployColour(targetEnv, appName, kubernetes)
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
 	deploymentName := DeploymentName(targetEnv, deployColour, appName)
-	log.Printf("Deploying: \033[32m%s\033[97m", deploymentName)
-	helmClient()
+	helmClient := buildHelmClient()
+	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
 
-	for {
-		// fmt.Printf("There are %d service in the cluster\n", len(service.Items))
-		// Examples for error handling:
-		// - Use helper functions like e.g. errors.IsNotFound()
-		// - And/or cast to StatusError and use its properties like e.g. ErrStatus.Message
-		namespace := "default"
-		pod := "example-xxxxx"
-		_, err := kubernetes.Pods(namespace).Get(pod, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			fmt.Printf("Pod %s in namespace %s not found\n", pod, namespace)
-		} else if statusError, isStatus := err.(*errors.StatusError); isStatus {
-			fmt.Printf("Error getting pod %s in namespace %s: %v\n",
-				pod, namespace, statusError.ErrStatus.Message)
-		} else if err != nil {
-			panic(err.Error())
-		} else {
-			fmt.Printf("Found pod %s in namespace %s\n", pod, namespace)
+	log.Printf("Loading values from: \033[32m%s\033[97m..", chartValues)
+	values, valueReadErr := ioutil.ReadFile(chartValues)
+	if valueReadErr != nil {
+		panic(valueReadErr.Error())
+	}
+
+	log.Printf("Checking for existing \033[32m%s\033[97m release..", deploymentName)
+	releaseContent, err := helmClient.ReleaseContent(deploymentName)
+	if err != nil && strings.Contains(err.Error(), storageerrors.ErrReleaseNotFound(deploymentName).Error()) {
+		log.Println("No existing release found, installing chart..")
+		res, installErr := helmClient.InstallRelease(chartDir, "default", helm.ReleaseName(deploymentName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(values))
+		if installErr != nil {
+			panic(installErr.Error())
+		}
+		log.Printf("Successfully installed: %s", res.Release.Info.Description)
+	} else if releaseContent.Release.Info.Status.Code == release.Status_DELETED {
+		log.Println("Existing release found in DELETED state, upgrading chart..")
+		res, updateErr := helmClient.UpdateRelease(deploymentName, chartDir, helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(values))
+		if updateErr != nil {
+			panic(updateErr.Error())
+		}
+		log.Printf("Successfully upgraded: %s", res.Release.Info.Description)
+	} else {
+		log.Println("Existing release found, performing dry-run release..")
+
+		dryRunResponse, dryRunErr := helmClient.UpdateRelease(deploymentName, chartDir, helm.UpgradeDryRun(true), helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(values))
+		if dryRunErr != nil {
+			panic(dryRunErr.Error())
 		}
 
-		time.Sleep(10 * time.Second)
+		currentManifests := manifest.ParseRelease(releaseContent.Release)
+		newManifests := manifest.ParseRelease(dryRunResponse.Release)
+
+		log.Println("Checking proposed release for changes against existing release..")
+		hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stderr)
+		if hasChanges {
+			res, updateErr := helmClient.UpdateRelease(deploymentName, chartDir, helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(values))
+			if updateErr != nil {
+				panic(updateErr.Error())
+			}
+			log.Printf("Successfully upgraded: %s", res.Release.Info.Description)
+		} else {
+			log.Println("No difference detected, no deploy.")
+		}
 	}
 }
 
-func parseCmdLineFlags() (string, string, string, string, string) {
-	chartDirUsage := "directory containing the service-to-be-deployed's chart definition."
-	chartDir := flag.String("chart-dir", "./chart", chartDirUsage)
-	appNameUsage := "name of the service-to-be-deployed (lower-case, alphanumeric + dashes)."
-	appName := flag.String("app-name", "", appNameUsage)
-	appVersionUsage := "semantic version of the service-to-be-deployed (vX.X.X, or X.X.X)."
-	appVersion := flag.String("app-version", "", appVersionUsage)
-	targetEnvUsage := "name of the environment in which to deploy the service (prod or staging)."
-	targetEnv := flag.String("target-env", "", targetEnvUsage)
-	flag.Parse()
-	chartValues := fmt.Sprintf("%s/%s.yaml", *chartDir, *targetEnv)
-	invalidFlags := *chartDir == "" || !IsDirectory(*chartDir) || *appName == "" || !IsValidAppName(*appName) || *appVersion == "" || !IsValidAppVersion(*appVersion) || *targetEnv == "" || !IsValidTargetEnv(*targetEnv) || chartValues == "" || !FileExists(chartValues)
-	if *chartDir == "" {
-		log.Printf("Missing flag \033[32m-chart-dir\033[97m, must be \033[33m%s\033[97m", chartDirUsage)
-	} else if !IsDirectory(*chartDir) {
-		log.Printf("Invalid \033[32mchart-dir\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *chartDir, chartDirUsage)
+func reportMap(m map[string]string) {
+	for key, value := range m {
+		log.Printf("\t%s: \033[32m%s\033[97m", key, value)
 	}
-	if *appName == "" {
-		log.Printf("Missing flag \033[32m-app-name\033[97m, must be \033[33m%s\033[97m", appNameUsage)
-	} else if !IsValidAppName(*appName) {
-		log.Printf("Invalid \033[32mapp-name\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *appName, appNameUsage)
-	}
-	if *appVersion == "" {
-		log.Printf("Missing flag \033[32m-app-version\033[97m, must be \033[33m%s\033[97m", appVersionUsage)
-	} else if !IsValidAppVersion(*appVersion) {
-		log.Printf("Invalid \033[32mapp-version\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *appVersion, appVersionUsage)
-	}
-	if *targetEnv == "" {
-		log.Printf("Missing flag \033[32m-target-env\033[97m, must be \033[33m%s\033[97m", targetEnvUsage)
-	} else if !IsValidTargetEnv(*targetEnv) {
-		log.Printf("Invalid \033[32mtarget-env\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", *targetEnv, targetEnvUsage)
-	}
+}
+
+func locateChartValues(chartDir, targetEnv string) (string, error) {
+	chartValues := fmt.Sprintf("%s/%s.yaml", chartDir, targetEnv)
 	if !FileExists(chartValues) {
-		log.Printf("Expected to find chart values yaml at: \033[31m%s\033[97m, but found nothing.", chartValues)
+		return "", errors.New(fmt.Sprintf("Expected to find chart values yaml at: \033[31m%s\033[97m, but found nothing.", chartValues))
+	} else {
+		return chartValues, nil
 	}
-	if invalidFlags {
-		panic("Invalid flag supplied, see log.")
-	}
-	return *chartDir, chartValues, *appName, *targetEnv, *appVersion
 }
 
 func homeDir() string {
@@ -113,7 +152,7 @@ func kubernetesCoreV1() v1.CoreV1Interface {
 	return client.CoreV1()
 }
 
-func helmClient() *helm.Client {
+func buildHelmClient() *helm.Client {
 	log.Println("Setting up tiller tunnel..")
 	tillerHost, err := setupTillerTunnel()
 	if err != nil {
