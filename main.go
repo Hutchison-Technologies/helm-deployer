@@ -1,7 +1,6 @@
 package main
 
 import (
-	// "k8s.io/helm/pkg/helm/portforwarder"
 	"flag"
 	"fmt"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -11,6 +10,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
 	"k8s.io/helm/pkg/helm"
+	"k8s.io/helm/pkg/helm/portforwarder"
 	"log"
 	"os"
 	"time"
@@ -147,18 +147,18 @@ func helmClient() *helm.Client {
 }
 
 func setupConnection() (string, error) {
-	// config, client, err := getKubeClient()
-	// if err != nil {
-	// 	return "", err
-	// }
+	config, client, err := getKubeClient()
+	if err != nil {
+		return "", err
+	}
 
-	// tillerTunnel, err = portforwarder.New("kube-system", client, config)
-	// if err != nil {
-	// 	return "", err
-	// }
+	tillerTunnel, err = portforwarder.New("kube-system", client, config)
+	if err != nil {
+		return "", err
+	}
 
-	tillerHost := ""
-	// tillerHost := fmt.Sprintf("127.0.0.1:%d", tillerTunnel.Local)
+	// tillerHost := ""
+	tillerHost := fmt.Sprintf("127.0.0.1:%d", tillerTunnel.Local)
 	// log.Printf("Created tunnel using local port: '%d'\n", tillerTunnel.Local)
 
 	// Set up the gRPC config.
