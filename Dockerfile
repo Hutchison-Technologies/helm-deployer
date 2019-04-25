@@ -6,6 +6,10 @@ RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 WORKDIR ${GOPATH}/src/github.com/Hutchison-Technologies/bluegreen-deployer
 
 COPY Gopkg.toml Gopkg.lock *.go ./
+COPY cli cli
+COPY filesystem filesystem
+COPY k8s k8s
+COPY deployment deployment
 RUN dep ensure
 
 FROM base as test

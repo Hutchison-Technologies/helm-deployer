@@ -1,9 +1,13 @@
-package main
+package deployment
 
 import (
 	"fmt"
 	corev1 "k8s.io/api/core/v1"
 )
+
+func DeploymentName(targetEnv, colour, appName string) string {
+	return fmt.Sprintf("%s-%s-%s", targetEnv, colour, appName)
+}
 
 func OfflineServiceName(targetEnv, appName string) string {
 	return fmt.Sprintf("%s-%s-offline", targetEnv, appName)

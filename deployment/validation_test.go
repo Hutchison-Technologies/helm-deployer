@@ -1,4 +1,4 @@
-package main
+package deployment
 
 import (
 	"github.com/stretchr/testify/assert"
