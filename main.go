@@ -130,14 +130,13 @@ func helmClient() *helm.Client {
 	kubeConfigPath := KubeConfigPath(homeDir)
 	log.Printf("Derived kubeconfig path: \033[32m%s\033[97m", kubeConfigPath)
 
-	config := KubeConfig(kubeConfigPath)
+	// config := KubeConfig(kubeConfigPath)
 	log.Printf("Successfully found kubeconfig at: \033[32m%s\033[97m", kubeConfigPath)
-	helmHost := fmt.Sprintf("%s", config.Host)
+	helmHost, err := setupConnection()
 	log.Printf("Using host \033[32m%s\033[97m from config to connect with Helm..", helmHost)
 
 	helmClient := helm.NewClient(helm.Host(helmHost), helm.ConnectTimeout(60))
 	log.Println("made client")
-	setupConnection()
 	releases, err := helmClient.ListReleases()
 	if err != nil {
 		panic(err.Error())
@@ -152,7 +151,7 @@ func setupConnection() (string, error) {
 		return "", err
 	}
 
-	tillerTunnel, err = portforwarder.New("kube-system", client, config)
+	tillerTunnel, err := portforwarder.New("kube-system", client, config)
 	if err != nil {
 		return "", err
 	}
