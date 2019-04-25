@@ -105,47 +105,32 @@ func homeDir() string {
 }
 
 func kubernetesCoreV1() v1.CoreV1Interface {
-	homeDir := homeDir()
-	log.Printf("Using home dir: \033[32m%s\033[97m", homeDir)
-
-	kubeConfigPath := KubeConfigPath(homeDir)
-	log.Printf("Derived kubeconfig path: \033[32m%s\033[97m", kubeConfigPath)
-
-	config := KubeConfig(kubeConfigPath)
-	log.Printf("Successfully found kubeconfig at: \033[32m%s\033[97m", kubeConfigPath)
-
-	log.Println("Creating kubectl clientset..")
-	clientset, err := kubernetes.NewForConfig(config)
+	_, client, err := getKubeClient()
 	if err != nil {
 		panic(err.Error())
 	}
-	log.Println("Successfully created kubectl clientset")
-	return clientset.CoreV1()
+	log.Println("Successfully created kubectl client")
+	return client.CoreV1()
 }
 
 func helmClient() *helm.Client {
-	homeDir := homeDir()
-	log.Printf("Using home dir: \033[32m%s\033[97m", homeDir)
-
-	kubeConfigPath := KubeConfigPath(homeDir)
-	log.Printf("Derived kubeconfig path: \033[32m%s\033[97m", kubeConfigPath)
-
-	// config := KubeConfig(kubeConfigPath)
-	log.Printf("Successfully found kubeconfig at: \033[32m%s\033[97m", kubeConfigPath)
-	helmHost, err := setupConnection()
-	log.Printf("Using host \033[32m%s\033[97m from config to connect with Helm..", helmHost)
-
-	helmClient := helm.NewClient(helm.Host(helmHost), helm.ConnectTimeout(60))
-	log.Println("made client")
-	releases, err := helmClient.ListReleases()
+	log.Println("Setting up tiller tunnel..")
+	tillerHost, err := setupTillerTunnel()
 	if err != nil {
 		panic(err.Error())
 	}
-	log.Printf("%v", releases)
+	log.Println("Established tiller tunnel")
+	helmClient := helm.NewClient(helm.Host(tillerHost), helm.ConnectTimeout(60))
+	log.Printf("Configured helm client, pinging tiller at: \033[32m%s\033[97m", tillerHost)
+	err = helmClient.PingTiller()
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Println("Successfully initialised helm client!")
 	return helmClient
 }
 
-func setupConnection() (string, error) {
+func setupTillerTunnel() (string, error) {
 	config, client, err := getKubeClient()
 	if err != nil {
 		return "", err
@@ -156,15 +141,7 @@ func setupConnection() (string, error) {
 		return "", err
 	}
 
-	// tillerHost := ""
-	tillerHost := fmt.Sprintf("127.0.0.1:%d", tillerTunnel.Local)
-	// log.Printf("Created tunnel using local port: '%d'\n", tillerTunnel.Local)
-
-	// Set up the gRPC config.
-	log.Printf("SERVER: %q\n", tillerHost)
-
-	// Plugin support.
-	return tillerHost, nil
+	return fmt.Sprintf("127.0.0.1:%d", tillerTunnel.Local), nil
 }
 
 // getKubeClient creates a Kubernetes config and client for a given kubeconfig context.
