@@ -6,6 +6,7 @@ import (
 	"github.com/Hutchison-Technologies/bluegreen-deployer/deployment"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/k8s"
+	"github.com/Hutchison-Technologies/bluegreen-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
 	"io/ioutil"
@@ -57,10 +58,18 @@ var flags = []*Flag{
 	},
 }
 
+func parseCLIFlags(flagsToParse []*Flag) map[string]string {
+	potentialParsedFlags, potentialParseFlagsErr := ParseFlags(flagsToParse)
+	cliFlags, err := HandleParseFlags(potentialParsedFlags, potentialParseFlagsErr)
+	runtime.PanicIfError(err)
+	return cliFlags
+}
+
 func Run() error {
 	log.Println("Starting bluegreen-deployer..")
+
 	log.Println("Parsing CLI flags..")
-	cliFlags := ParseFlags(flags)
+	cliFlags := parseCLIFlags(flags)
 	log.Println("Successfully parsed CLI flags:")
 	PrintMap(cliFlags)
 

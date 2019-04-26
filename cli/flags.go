@@ -3,7 +3,7 @@ package cli
 import (
 	"errors"
 	"flag"
-	"log"
+	"fmt"
 	"strings"
 )
 
@@ -15,42 +15,35 @@ type Flag struct {
 	Value       *string
 }
 
-func ParseFlags(cliFlags []*Flag) map[string]string {
-	parsedFlags, err := doParse(cliFlags)
-	return HandleParseFlags(parsedFlags, err)
-}
-
-func doParse(cliFlags []*Flag) (map[string]string, error) {
+func ParseFlags(cliFlags []*Flag) (map[string]string, error) {
 	parsedValues := make(map[string]string)
 	for _, cliFlag := range cliFlags {
 		cliFlag.Value = flag.String(cliFlag.Key, cliFlag.Default, cliFlag.Description)
 	}
 	flag.Parse()
-	errorFound := false
+	errorMessages := make([]string, 0)
 	for _, cliFlag := range cliFlags {
 		if *cliFlag.Value == "" {
-			errorFound = true
-			log.Printf("Missing flag \033[32m-%s\033[97m, must be \033[33m%s\033[97m", cliFlag.Key, cliFlag.Description)
+			errorMessages = append(errorMessages, fmt.Sprintf("Missing flag \033[32m-%s\033[97m, must be \033[33m%s\033[97m", cliFlag.Key, cliFlag.Description))
 		} else if !cliFlag.Validator(*cliFlag.Value) {
-			errorFound = true
-			log.Printf("Invalid \033[32m-%s\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", cliFlag.Key, *cliFlag.Value, cliFlag.Description)
+			errorMessages = append(errorMessages, fmt.Sprintf("Invalid \033[32m-%s\033[97m: \033[31m%s\033[97m, must be \033[33m%s\033[97m", cliFlag.Key, *cliFlag.Value, cliFlag.Description))
 		} else {
 			parsedValues[cliFlag.Key] = strings.TrimRight(*cliFlag.Value, "/")
 		}
 	}
 
-	if errorFound {
-		return nil, errors.New("Error parsing CLI flags, see log.")
+	if len(errorMessages) > 0 {
+		return nil, errors.New(fmt.Sprintf("Error parsing CLI flags:\n\t%s", strings.Join(errorMessages, "\n\t")))
 	} else {
 		return parsedValues, nil
 	}
 }
 
-func HandleParseFlags(flags map[string]string, err error) map[string]string {
+func HandleParseFlags(flags map[string]string, err error) (map[string]string, error) {
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	} else if flags == nil || len(flags) == 0 {
-		panic("Something's gone horribly wrong, parsed CLI flags are empty!")
+		return nil, errors.New("Something's gone horribly wrong, parsed CLI flags are empty!")
 	}
-	return flags
+	return flags, nil
 }

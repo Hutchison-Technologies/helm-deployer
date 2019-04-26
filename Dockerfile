@@ -10,6 +10,7 @@ COPY cli cli
 COPY filesystem filesystem
 COPY k8s k8s
 COPY deployment deployment
+COPY runtime runtime
 RUN dep ensure
 
 FROM base as test

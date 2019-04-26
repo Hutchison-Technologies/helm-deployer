@@ -6,16 +6,19 @@ import (
 	"testing"
 )
 
-func Test_HandleParseFlags_Panics_When_Flags_Empty(t *testing.T) {
-	assert.Panics(t, func() { HandleParseFlags(make(map[string]string), nil) })
+func Test_HandleParseFlags_Returns_Error_When_Flags_Empty(t *testing.T) {
+	_, err := HandleParseFlags(make(map[string]string), nil)
+	assert.NotNil(t, err)
 }
 
-func Test_HandleParseFlags_Panics_When_Flags_Nil(t *testing.T) {
-	assert.Panics(t, func() { HandleParseFlags(nil, nil) })
+func Test_HandleParseFlags_Returns_Error_When_Flags_Nil(t *testing.T) {
+	_, err := HandleParseFlags(nil, nil)
+	assert.NotNil(t, err)
 }
 
-func Test_HandleParseFlags_Panics_When_Error_Not_Nil(t *testing.T) {
-	assert.Panics(t, func() { HandleParseFlags(nil, errors.New("Some poop happened")) })
+func Test_HandleParseFlags_Returns_Error_When_Error_Not_Nil(t *testing.T) {
+	_, err := HandleParseFlags(nil, errors.New("Some poop happened"))
+	assert.NotNil(t, err)
 }
 
 func Test_HandleParseFlags_Returns_Given_Flags(t *testing.T) {
@@ -24,5 +27,7 @@ func Test_HandleParseFlags_Returns_Given_Flags(t *testing.T) {
 		"thing3": "thing4",
 		"thing5": "thing6",
 	}
-	assert.Equal(t, someFlags, HandleParseFlags(someFlags, nil))
+	returnedFlags, err := HandleParseFlags(someFlags, nil)
+	assert.Equal(t, someFlags, returnedFlags)
+	assert.Nil(t, err)
 }
