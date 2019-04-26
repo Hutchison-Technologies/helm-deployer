@@ -1,0 +1,23 @@
+# this is some kind of comment
+bluegreen:
+  is_service_release: false
+
+  service:
+    selector:
+      colour: blue
+
+  deployment:
+    image: eu.gcr.io/in-home-displays-4f5adbfd/ihdl-gateway-api
+    version: 0.0.9
+    colour: blue
+    port: 8080
+    live_probe_path: /
+    pull_policy: Always
+    replicas: 1
+
+  labels:
+    app: ihdl-gateway-api
+    tier: web
+    env: prod
+---
+
