@@ -1,15 +1,15 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
+	"github.com/Hutchison-Technologies/bluegreen-deployer/charts"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/deployment"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
+	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/yaml"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/k8s"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
-	"io/ioutil"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
@@ -65,6 +65,25 @@ func parseCLIFlags(flagsToParse []*Flag) map[string]string {
 	return cliFlags
 }
 
+func loadChartValues(chartDir, targetEnv string) *yaml.Yaml {
+	chartValuesPath := deployment.ChartValuesPath(chartDir, targetEnv)
+	values, err := charts.LoadValuesYaml(chartValuesPath)
+	runtime.PanicIfError(err)
+	return values
+}
+
+func editChartValues(valuesYaml *yaml.Yaml, deployColour, appVersion string) []byte {
+	colourErr := valuesYaml.Set("bluegreen", "deployment", "colour", deployColour)
+	runtime.PanicIfError(colourErr)
+	versionErr := valuesYaml.Set("bluegreen", "deployment", "version", appVersion)
+	runtime.PanicIfError(versionErr)
+	saveErr := valuesYaml.Save()
+	runtime.PanicIfError(saveErr)
+	values, convertErr := valuesYaml.ToByteArray()
+	runtime.PanicIfError(convertErr)
+	return values
+}
+
 func Run() error {
 	log.Println("Starting bluegreen-deployer..")
 
@@ -73,42 +92,36 @@ func Run() error {
 	log.Println("Successfully parsed CLI flags:")
 	PrintMap(cliFlags)
 
-	// cliFlags[APP_VERSION]
-
-	log.Println("Locating chart values..")
-	chartValues, chartValuesErr := locateChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
-	if chartValuesErr != nil {
-		panic(chartValuesErr.Error())
-	}
-	log.Println("Successfully located chart values")
-
 	log.Println("Accessing kubernetes..")
 	kubernetes := kubernetesCoreV1()
 	log.Println("Determining deploy colour..")
 	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME], kubernetes)
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
+
+	log.Println("Loading chart values..")
+	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
+	log.Println("Successfully loaded chart values")
+
+	log.Println("Setting deployment-specific chart values..")
+	chartValues := editChartValues(chartValuesYaml, deployColour, cliFlags[APP_VERSION])
+	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
+
 	deploymentName := deployment.DeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
 	helmClient := buildHelmClient()
 	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
-
-	log.Printf("Loading values from: \033[32m%s\033[97m..", chartValues)
-	values, valueReadErr := ioutil.ReadFile(chartValues)
-	if valueReadErr != nil {
-		panic(valueReadErr.Error())
-	}
 
 	log.Printf("Checking for existing \033[32m%s\033[97m release..", deploymentName)
 	releaseContent, err := helmClient.ReleaseContent(deploymentName)
 	if err != nil && strings.Contains(err.Error(), storageerrors.ErrReleaseNotFound(deploymentName).Error()) {
 		log.Println("No existing release found, installing chart..")
-		res, installErr := helmClient.InstallRelease(cliFlags[CHART_DIR], "default", helm.ReleaseName(deploymentName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(values))
+		res, installErr := helmClient.InstallRelease(cliFlags[CHART_DIR], "default", helm.ReleaseName(deploymentName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(chartValues))
 		if installErr != nil {
 			panic(installErr.Error())
 		}
 		log.Printf("Successfully installed: %s", res.Release.Info.Description)
 	} else if releaseContent.Release.Info.Status.Code == release.Status_DELETED {
 		log.Println("Existing release found in DELETED state, upgrading chart..")
-		res, updateErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(values))
+		res, updateErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
 		if updateErr != nil {
 			panic(updateErr.Error())
 		}
@@ -116,7 +129,7 @@ func Run() error {
 	} else {
 		log.Println("Existing release found, performing dry-run release..")
 
-		dryRunResponse, dryRunErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeDryRun(true), helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(values))
+		dryRunResponse, dryRunErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeDryRun(true), helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
 		if dryRunErr != nil {
 			panic(dryRunErr.Error())
 		}
@@ -127,7 +140,7 @@ func Run() error {
 		log.Println("Checking proposed release for changes against existing release..")
 		hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stderr)
 		if hasChanges {
-			res, updateErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(values))
+			res, updateErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
 			if updateErr != nil {
 				panic(updateErr.Error())
 			}
@@ -137,15 +150,6 @@ func Run() error {
 		}
 	}
 	return nil
-}
-
-func locateChartValues(chartDir, targetEnv string) (string, error) {
-	chartValues := deployment.ChartValuesPath(chartDir, targetEnv)
-	if !filesystem.IsFile(chartValues) {
-		return "", errors.New(fmt.Sprintf("Expected to find chart values yaml at: \033[31m%s\033[97m, but found nothing.", chartValues))
-	} else {
-		return chartValues, nil
-	}
 }
 
 func kubernetesCoreV1() v1.CoreV1Interface {
