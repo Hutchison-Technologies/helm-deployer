@@ -12,3 +12,6 @@
 *.out
 main
 vendor
+bluegreen-deployer
+testchart
+README.md
