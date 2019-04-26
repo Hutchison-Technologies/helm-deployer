@@ -18,7 +18,6 @@ import (
 	"k8s.io/helm/pkg/proto/hapi/services"
 	"log"
 	"os"
-	"time"
 )
 
 const (
@@ -72,23 +71,47 @@ func Run() error {
 	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME], kubeClient)
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
 
+	//TODO: examine requirements.yaml to ensure blue-green-microservice is a dependency, and it is aliased to bluegreen
+
 	log.Println("Loading chart values..")
 	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
 	log.Println("Successfully loaded chart values")
 
 	log.Println("Setting deployment-specific chart values..")
-	chartValues := editChartValues(chartValuesYaml, deployColour, cliFlags[APP_VERSION])
+	chartValues := editChartValues(chartValuesYaml, [][]interface{}{
+		[]interface{}{"bluegreen", "is_service_release", false},
+		[]interface{}{"bluegreen", "deployment", "colour", deployColour},
+		[]interface{}{"bluegreen", "deployment", "version", cliFlags[APP_VERSION]},
+	})
 	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
 
 	deploymentName := deployment.DeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
-	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
 
 	log.Println("Connecting helm client..")
 	helmClient := buildHelmClient()
 	log.Println("Successfully connected helm client!")
 
-	err := deployRelease(helmClient, deploymentName, cliFlags[CHART_DIR], chartValues)
+	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
+	deployedRelease, err := deployRelease(helmClient, deploymentName, cliFlags[CHART_DIR], chartValues)
 	runtime.PanicIfError(err)
+	log.Printf("Successfully deployed \033[32m%s\033[97m", deploymentName)
+	PrintRelease(deployedRelease)
+
+	log.Println("Preparing to route live traffic to newly deployed release")
+	log.Println("Setting deployment-specific chart values..")
+	chartValues = editChartValues(chartValuesYaml, [][]interface{}{
+		[]interface{}{"bluegreen", "is_service_release", true},
+		[]interface{}{"bluegreen", "service", "selector", "colour", deployColour},
+	})
+	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
+
+	deploymentName = deployment.DeploymentServiceName(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
+
+	log.Printf("Switching service \033[32m%s\033[97m to point at \033[32m%s\033[97m", deploymentName, deployColour)
+	deployedRelease, err = deployRelease(helmClient, deploymentName, cliFlags[CHART_DIR], chartValues)
+	runtime.PanicIfError(err)
+	log.Printf("Successfully switched service \033[32m%s\033[97m to point at \033[32m%s\033[97m", deploymentName, deployColour)
+	PrintRelease(deployedRelease)
 	return nil
 }
 
@@ -106,11 +129,11 @@ func loadChartValues(chartDir, targetEnv string) *yaml.Yaml {
 	return values
 }
 
-func editChartValues(valuesYaml *yaml.Yaml, deployColour, appVersion string) []byte {
-	colourErr := valuesYaml.Set("bluegreen", "deployment", "colour", deployColour)
-	runtime.PanicIfError(colourErr)
-	versionErr := valuesYaml.Set("bluegreen", "deployment", "version", appVersion)
-	runtime.PanicIfError(versionErr)
+func editChartValues(valuesYaml *yaml.Yaml, settings [][]interface{}) []byte {
+	for _, setting := range settings {
+		err := valuesYaml.Set(setting...)
+		runtime.PanicIfError(err)
+	}
 	saveErr := valuesYaml.Save()
 	runtime.PanicIfError(saveErr)
 	values, convertErr := valuesYaml.ToByteArray()
@@ -154,31 +177,32 @@ func buildHelmClient() *helm.Client {
 	return helmClient
 }
 
-func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte) error {
+func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte) (*release.Release, error) {
 	log.Printf("Checking for existing \033[32m%s\033[97m release..", releaseName)
 	releaseContent, err := helmClient.ReleaseContent(releaseName)
 	existingReleaseCode := release.Status_UNKNOWN
+
 	if releaseContent != nil {
 		log.Println("Found existing release:")
-		printRelease(releaseContent.Release.Name, releaseContent.Release.Version, releaseContent.Release.Info.Status.Code.String(), time.Unix(releaseContent.Release.Info.LastDeployed.Seconds, int64(releaseContent.Release.Info.LastDeployed.Nanos)).String())
+		PrintRelease(releaseContent.Release)
 		existingReleaseCode = releaseContent.Release.Info.Status.Code
 	}
+
 	switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
 	case deployment.ReleaseCourse.INSTALL:
-		log.Println("No existing release found, installing chart..")
+		log.Println("No existing release found, installing release..")
 		installResponse, err := helmClient.InstallRelease(chartDir, "default", helm.ReleaseName(releaseName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(chartValues))
 		if err != nil {
-			return err
+			return nil, err
 		}
-		log.Printf("Successfully installed \033[32m%s\033[97m", releaseName)
-		printRelease(installResponse.Release.Name, installResponse.Release.Version, installResponse.Release.Info.Status.Code.String(), time.Unix(installResponse.Release.Info.LastDeployed.Seconds, int64(installResponse.Release.Info.LastDeployed.Nanos)).String())
-		return nil
+		return installResponse.Release, nil
+
 	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
 		log.Println("Dry-running release to obtain full manifest..")
 
 		dryRunResponse, err := upgradeRelease(helmClient, releaseName, chartDir, chartValues, helm.UpgradeDryRun(true))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		currentManifests := manifest.ParseRelease(releaseContent.Release)
@@ -187,24 +211,19 @@ func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartV
 		log.Println("Checking proposed release for changes against existing release..")
 		hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stdout)
 		if !hasChanges {
-			return errors.New("No difference detected between this release and the existing release, no deploy.")
+			return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
 		}
 		fallthrough
 	case deployment.ReleaseCourse.UPGRADE:
 		log.Println("Upgrading release..")
 		upgradeResponse, err := upgradeRelease(helmClient, releaseName, chartDir, chartValues)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		log.Printf("Successfully upgraded \033[32m%s\033[97m", releaseName)
-		printRelease(upgradeResponse.Release.Name, upgradeResponse.Release.Version, upgradeResponse.Release.Info.Status.Code.String(), time.Unix(upgradeResponse.Release.Info.LastDeployed.Seconds, int64(upgradeResponse.Release.Info.LastDeployed.Nanos)).String())
+		return upgradeResponse.Release, nil
 	}
 
-	return nil
-}
-
-func printRelease(name string, version int32, status, lastDeployed string) {
-	log.Printf("\n\tName: \033[32m%s\033[97m\n\tRelease Number: \033[32m%d\033[97m\n\tStatus: \033[32m%s\033[97m\n\tLast Deployed: \033[32m%s\033[97m", name, version, status, lastDeployed)
+	return nil, errors.New("Unknown release course")
 }
 
 func upgradeRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte, opts ...helm.UpdateOption) (*services.UpdateReleaseResponse, error) {
