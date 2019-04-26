@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/charts"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/deployment"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
@@ -14,10 +15,10 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/release"
-	storageerrors "k8s.io/helm/pkg/storage/errors"
+	"k8s.io/helm/pkg/proto/hapi/services"
 	"log"
 	"os"
-	"strings"
+	"time"
 )
 
 const (
@@ -86,37 +87,8 @@ func Run() error {
 	helmClient := buildHelmClient()
 	log.Println("Successfully connected helm client!")
 
-	log.Printf("Checking for existing \033[32m%s\033[97m release..", deploymentName)
-	releaseContent, err := helmClient.ReleaseContent(deploymentName)
-	if err != nil && strings.Contains(err.Error(), storageerrors.ErrReleaseNotFound(deploymentName).Error()) {
-		log.Println("No existing release found, installing chart..")
-		res, installErr := helmClient.InstallRelease(cliFlags[CHART_DIR], "default", helm.ReleaseName(deploymentName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(chartValues))
-		runtime.PanicIfError(installErr)
-		log.Printf("Successfully installed: %s", res.Release.Info.Description)
-	} else if releaseContent.Release.Info.Status.Code == release.Status_DELETED {
-		log.Println("Existing release found in DELETED state, upgrading chart..")
-		res, updateErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
-		runtime.PanicIfError(updateErr)
-		log.Printf("Successfully upgraded: %s", res.Release.Info.Description)
-	} else {
-		log.Println("Existing release found, performing dry-run release..")
-
-		dryRunResponse, dryRunErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeDryRun(true), helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
-		runtime.PanicIfError(dryRunErr)
-
-		currentManifests := manifest.ParseRelease(releaseContent.Release)
-		newManifests := manifest.ParseRelease(dryRunResponse.Release)
-
-		log.Println("Checking proposed release for changes against existing release..")
-		hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stderr)
-		if hasChanges {
-			res, updateErr := helmClient.UpdateRelease(deploymentName, cliFlags[CHART_DIR], helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
-			runtime.PanicIfError(updateErr)
-			log.Printf("Successfully upgraded: %s", res.Release.Info.Description)
-		} else {
-			log.Println("No difference detected, no deploy.")
-		}
-	}
+	err := deployRelease(helmClient, deploymentName, cliFlags[CHART_DIR], chartValues)
+	runtime.PanicIfError(err)
 	return nil
 }
 
@@ -180,4 +152,66 @@ func buildHelmClient() *helm.Client {
 	err = helmClient.PingTiller()
 	runtime.PanicIfError(err)
 	return helmClient
+}
+
+func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte) error {
+	log.Printf("Checking for existing \033[32m%s\033[97m release..", releaseName)
+	releaseContent, err := helmClient.ReleaseContent(releaseName)
+	existingReleaseCode := release.Status_UNKNOWN
+	if releaseContent != nil {
+		log.Println("Found existing release:")
+		printRelease(releaseContent.Release.Name, releaseContent.Release.Version, releaseContent.Release.Info.Status.Code.String(), time.Unix(releaseContent.Release.Info.LastDeployed.Seconds, int64(releaseContent.Release.Info.LastDeployed.Nanos)).String())
+		existingReleaseCode = releaseContent.Release.Info.Status.Code
+	}
+	switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
+	case deployment.ReleaseCourse.INSTALL:
+		log.Println("No existing release found, installing chart..")
+		installResponse, err := helmClient.InstallRelease(chartDir, "default", helm.ReleaseName(releaseName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(chartValues))
+		if err != nil {
+			return err
+		}
+		log.Printf("Successfully installed \033[32m%s\033[97m", releaseName)
+		printRelease(installResponse.Release.Name, installResponse.Release.Version, installResponse.Release.Info.Status.Code.String(), time.Unix(installResponse.Release.Info.LastDeployed.Seconds, int64(installResponse.Release.Info.LastDeployed.Nanos)).String())
+		return nil
+	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
+		log.Println("Dry-running release to obtain full manifest..")
+
+		dryRunResponse, err := upgradeRelease(helmClient, releaseName, chartDir, chartValues, helm.UpgradeDryRun(true))
+		if err != nil {
+			return err
+		}
+
+		currentManifests := manifest.ParseRelease(releaseContent.Release)
+		newManifests := manifest.ParseRelease(dryRunResponse.Release)
+
+		log.Println("Checking proposed release for changes against existing release..")
+		hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stdout)
+		if !hasChanges {
+			return errors.New("No difference detected between this release and the existing release, no deploy.")
+		}
+		fallthrough
+	case deployment.ReleaseCourse.UPGRADE:
+		log.Println("Upgrading release..")
+		upgradeResponse, err := upgradeRelease(helmClient, releaseName, chartDir, chartValues)
+		if err != nil {
+			return err
+		}
+		log.Printf("Successfully upgraded \033[32m%s\033[97m", releaseName)
+		printRelease(upgradeResponse.Release.Name, upgradeResponse.Release.Version, upgradeResponse.Release.Info.Status.Code.String(), time.Unix(upgradeResponse.Release.Info.LastDeployed.Seconds, int64(upgradeResponse.Release.Info.LastDeployed.Nanos)).String())
+	}
+
+	return nil
+}
+
+func printRelease(name string, version int32, status, lastDeployed string) {
+	log.Printf("\n\tName: \033[32m%s\033[97m\n\tRelease Number: \033[32m%d\033[97m\n\tStatus: \033[32m%s\033[97m\n\tLast Deployed: \033[32m%s\033[97m", name, version, status, lastDeployed)
+}
+
+func upgradeRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte, opts ...helm.UpdateOption) (*services.UpdateReleaseResponse, error) {
+	opts = append(opts, helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
+	res, err := helmClient.UpdateRelease(releaseName, chartDir, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
