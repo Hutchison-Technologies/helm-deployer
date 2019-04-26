@@ -10,7 +10,6 @@ import (
 	"github.com/Hutchison-Technologies/bluegreen-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/helm/pkg/helm"
@@ -22,10 +21,11 @@ import (
 )
 
 const (
-	CHART_DIR   = "chart-dir"
-	APP_NAME    = "app-name"
-	APP_VERSION = "app-version"
-	TARGET_ENV  = "target-env"
+	CHART_DIR      = "chart-dir"
+	APP_NAME       = "app-name"
+	APP_VERSION    = "app-version"
+	TARGET_ENV     = "target-env"
+	DEFAULT_COLOUR = "blue"
 )
 
 var flags = []*Flag{
@@ -55,32 +55,6 @@ var flags = []*Flag{
 	},
 }
 
-func parseCLIFlags(flagsToParse []*Flag) map[string]string {
-	potentialParsedFlags, potentialParseFlagsErr := ParseFlags(flagsToParse)
-	cliFlags, err := HandleParseFlags(potentialParsedFlags, potentialParseFlagsErr)
-	runtime.PanicIfError(err)
-	return cliFlags
-}
-
-func loadChartValues(chartDir, targetEnv string) *yaml.Yaml {
-	chartValuesPath := deployment.ChartValuesPath(chartDir, targetEnv)
-	values, err := charts.LoadValuesYaml(chartValuesPath)
-	runtime.PanicIfError(err)
-	return values
-}
-
-func editChartValues(valuesYaml *yaml.Yaml, deployColour, appVersion string) []byte {
-	colourErr := valuesYaml.Set("bluegreen", "deployment", "colour", deployColour)
-	runtime.PanicIfError(colourErr)
-	versionErr := valuesYaml.Set("bluegreen", "deployment", "version", appVersion)
-	runtime.PanicIfError(versionErr)
-	saveErr := valuesYaml.Save()
-	runtime.PanicIfError(saveErr)
-	values, convertErr := valuesYaml.ToByteArray()
-	runtime.PanicIfError(convertErr)
-	return values
-}
-
 func Run() error {
 	log.Println("Starting bluegreen-deployer..")
 
@@ -90,10 +64,11 @@ func Run() error {
 	PrintMap(cliFlags)
 
 	log.Println("Initialising kubectl..")
-	kubernetes, err := kubectl.Client()
-	runtime.PanicIfError(err)
+	kubeClient := kubeCtlClient()
+	log.Println("Successfully initialised kubectl")
+
 	log.Println("Determining deploy colour..")
-	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME], kubernetes)
+	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME], kubeClient)
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
 
 	log.Println("Loading chart values..")
@@ -105,8 +80,11 @@ func Run() error {
 	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
 
 	deploymentName := deployment.DeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
-	helmClient := buildHelmClient()
 	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
+
+	log.Println("Connecting helm client..")
+	helmClient := buildHelmClient()
+	log.Println("Successfully connected helm client!")
 
 	log.Printf("Checking for existing \033[32m%s\033[97m release..", deploymentName)
 	releaseContent, err := helmClient.ReleaseContent(deploymentName)
@@ -142,31 +120,64 @@ func Run() error {
 	return nil
 }
 
+func parseCLIFlags(flagsToParse []*Flag) map[string]string {
+	potentialParsedFlags, potentialParseFlagsErr := ParseFlags(flagsToParse)
+	cliFlags, err := HandleParseFlags(potentialParsedFlags, potentialParseFlagsErr)
+	runtime.PanicIfError(err)
+	return cliFlags
+}
+
+func loadChartValues(chartDir, targetEnv string) *yaml.Yaml {
+	chartValuesPath := deployment.ChartValuesPath(chartDir, targetEnv)
+	values, err := charts.LoadValuesYaml(chartValuesPath)
+	runtime.PanicIfError(err)
+	return values
+}
+
+func editChartValues(valuesYaml *yaml.Yaml, deployColour, appVersion string) []byte {
+	colourErr := valuesYaml.Set("bluegreen", "deployment", "colour", deployColour)
+	runtime.PanicIfError(colourErr)
+	versionErr := valuesYaml.Set("bluegreen", "deployment", "version", appVersion)
+	runtime.PanicIfError(versionErr)
+	saveErr := valuesYaml.Save()
+	runtime.PanicIfError(saveErr)
+	values, convertErr := valuesYaml.ToByteArray()
+	runtime.PanicIfError(convertErr)
+	return values
+}
+
+func kubeCtlClient() v1.CoreV1Interface {
+	client, err := kubectl.Client()
+	runtime.PanicIfError(err)
+	return client
+}
+
+func determineDeployColour(targetEnv, appName string, kubeClient v1.CoreV1Interface) string {
+	log.Printf("Getting the offline service of \033[32m%s\033[97m in \033[32m%s\033[97m", appName, targetEnv)
+	offlineService, err := deployment.GetOfflineService(kubeClient, targetEnv, appName)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	if err != nil || offlineService == nil {
+		log.Printf("Unable to locate offline service, this might be the first deploy, defaulting to: \033[32m%s\033[97m", DEFAULT_COLOUR)
+	} else {
+		log.Printf("Found offline service \033[32m%s\033[97m, checking selector colour..", offlineService.GetName())
+		offlineColour := k8s.ServiceSelectorColour(offlineService)
+		if offlineColour != "" {
+			return offlineColour
+		}
+	}
+	return DEFAULT_COLOUR
+}
+
 func buildHelmClient() *helm.Client {
 	log.Println("Setting up tiller tunnel..")
 	tillerHost, err := kubectl.SetupTillerTunnel()
 	runtime.PanicIfError(err)
 	log.Println("Established tiller tunnel")
 	helmClient := helm.NewClient(helm.Host(tillerHost), helm.ConnectTimeout(60))
-	log.Printf("Configured helm client, pinging tiller at: \033[32m%s\033[97m", tillerHost)
+	log.Printf("Configured helm client, pinging tiller at: \033[32m%s\033[97m..", tillerHost)
 	err = helmClient.PingTiller()
 	runtime.PanicIfError(err)
-	log.Println("Successfully initialised helm client!")
 	return helmClient
-}
-
-func determineDeployColour(targetEnv, appName string, kubernetes v1.CoreV1Interface) string {
-	offlineServiceName := deployment.OfflineServiceName(targetEnv, appName)
-	log.Printf("Looking for the colour selector of the offline service: \033[32m%s\033[97m", offlineServiceName)
-	service, err := kubernetes.Services("default").Get(offlineServiceName, metav1.GetOptions{})
-	if err != nil || service == nil {
-		log.Printf("Offline service \033[32m%s\033[97m was not found, defaulting..", offlineServiceName)
-	} else if service.Spec.Selector == nil || len(service.Spec.Selector) == 0 {
-		if _, ok := service.Spec.Selector["colour"]; !ok {
-			log.Printf("Offline service \033[32m%s\033[97m was found but it had no colour selector, defaulting..", offlineServiceName)
-		} else {
-			log.Printf("Offline service \033[32m%s\033[97m was found but it had no selectors, defaulting..", offlineServiceName)
-		}
-	}
-	return k8s.ServiceSelectorColour(service, err)
 }
