@@ -140,7 +140,7 @@ func Run() error {
 }
 
 func locateChartValues(chartDir, targetEnv string) (string, error) {
-	chartValues := fmt.Sprintf("%s/%s.yaml", chartDir, targetEnv)
+	chartValues := deployment.ChartValuesPath(chartDir, targetEnv)
 	if !filesystem.IsFile(chartValues) {
 		return "", errors.New(fmt.Sprintf("Expected to find chart values yaml at: \033[31m%s\033[97m, but found nothing.", chartValues))
 	} else {
@@ -220,5 +220,5 @@ func determineDeployColour(targetEnv, appName string, kubernetes v1.CoreV1Interf
 			log.Printf("Offline service \033[32m%s\033[97m was found but it had no selectors, defaulting..", offlineServiceName)
 		}
 	}
-	return deployment.ServiceSelectorColour(service, err)
+	return k8s.ServiceSelectorColour(service, err)
 }
