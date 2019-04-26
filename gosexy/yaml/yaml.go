@@ -201,3 +201,32 @@ func (self *Yaml) Read(filename string) error {
 
 	return nil
 }
+
+func (self *Yaml) ToByteArray() ([]byte, error) {
+	var err error
+
+	fileinfo, err := os.Stat(self.file)
+
+	if err != nil {
+		return nil, err
+	}
+
+	filesize := fileinfo.Size()
+
+	fp, err := os.Open(self.file)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer fp.Close()
+
+	buf := make([]byte, filesize)
+	_, err = fp.Read(buf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return buf, nil
+}
