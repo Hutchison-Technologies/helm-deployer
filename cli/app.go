@@ -63,12 +63,8 @@ func Run() error {
 	log.Println("Successfully parsed CLI flags:")
 	PrintMap(cliFlags)
 
-	log.Println("Initialising kubectl..")
-	kubeClient := kubeCtlClient()
-	log.Println("Successfully initialised kubectl")
-
 	log.Println("Determining deploy colour..")
-	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME], kubeClient)
+	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
 
 	//TODO: examine requirements.yaml to ensure blue-green-microservice is a dependency, and it is aliased to bluegreen
@@ -135,13 +131,11 @@ func editChartValues(valuesYaml *yaml.Yaml, settings [][]interface{}) []byte {
 	return values
 }
 
-func kubeCtlClient() v1.CoreV1Interface {
-	client, err := kubectl.Client()
-	runtime.PanicIfError(err)
-	return client
-}
+func determineDeployColour(targetEnv, appName string) string {
+	log.Println("Initialising kubectl..")
+	kubeClient := kubeCtlClient()
+	log.Println("Successfully initialised kubectl")
 
-func determineDeployColour(targetEnv, appName string, kubeClient v1.CoreV1Interface) string {
 	log.Printf("Getting the offline service of \033[32m%s\033[97m in \033[32m%s\033[97m", appName, targetEnv)
 	offlineService, err := deployment.GetOfflineService(kubeClient, targetEnv, appName)
 	if err != nil {
@@ -157,6 +151,12 @@ func determineDeployColour(targetEnv, appName string, kubeClient v1.CoreV1Interf
 		}
 	}
 	return DEFAULT_COLOUR
+}
+
+func kubeCtlClient() v1.CoreV1Interface {
+	client, err := kubectl.Client()
+	runtime.PanicIfError(err)
+	return client
 }
 
 func buildHelmClient() *helm.Client {
