@@ -12,6 +12,6 @@ func OfflineServiceName(targetEnv, appName string) string {
 	return fmt.Sprintf("%s-%s-offline", targetEnv, appName)
 }
 
-func DeploymentServiceName(targetEnv, appName string) string {
+func ServiceReleaseName(targetEnv, appName string) string {
 	return fmt.Sprintf("%s-service-%s", targetEnv, appName)
 }

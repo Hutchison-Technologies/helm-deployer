@@ -42,3 +42,18 @@ func DetermineReleaseCourse(releaseName string, statusCode release.Status_Code, 
 		return ReleaseCourse.UPGRADE_WITH_DIFF_CHECK
 	}
 }
+
+func ChartValuesForDeployment(deployColour, appVersion string) [][]interface{} {
+	return [][]interface{}{
+		[]interface{}{"bluegreen", "is_service_release", false},
+		[]interface{}{"bluegreen", "deployment", "colour", deployColour},
+		[]interface{}{"bluegreen", "deployment", "version", appVersion},
+	}
+}
+
+func ChartValuesForServiceRelease(deployColour string) [][]interface{} {
+	return [][]interface{}{
+		[]interface{}{"bluegreen", "is_service_release", true},
+		[]interface{}{"bluegreen", "service", "selector", "colour", deployColour},
+	}
+}

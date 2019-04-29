@@ -56,6 +56,13 @@ var flags = []*Flag{
 	},
 }
 
+const GREEN = "\033[32m%s\033[97m"
+
+//TODO: use everywhere
+func wrapWithGreen(ster string) string {
+	return fmt.Sprintf(GREEN, ster)
+}
+
 func Run() error {
 	log.Println("Starting bluegreen-deployer..")
 
@@ -70,47 +77,38 @@ func Run() error {
 
 	log.Println("Determining deploy colour..")
 	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
-	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
+	log.Printf("Determined deploy colour: %s", wrapWithGreen(deployColour))
 
 	log.Println("Loading chart values..")
 	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
 	log.Println("Successfully loaded chart values")
 
-	log.Println("Setting deployment-specific chart values..")
-	chartValues := editChartValues(chartValuesYaml, [][]interface{}{
-		[]interface{}{"bluegreen", "is_service_release", false},
-		[]interface{}{"bluegreen", "deployment", "colour", deployColour},
-		[]interface{}{"bluegreen", "deployment", "version", cliFlags[APP_VERSION]},
-	})
-	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
-
-	deploymentName := deployment.DeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
-
 	log.Println("Connecting helm client..")
 	helmClient := buildHelmClient()
 	log.Println("Successfully connected helm client!")
 
-	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
-	deployedRelease, err := deployRelease(helmClient, deploymentName, cliFlags[CHART_DIR], chartValues)
-	runtime.PanicIfError(err)
+	deploymentName := deployment.DeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
+	log.Printf("Preparing to deploy \033[32m%s\033[97m..", deploymentName)
+	deployedRelease := releaseWithValues(
+		deploymentName,
+		chartValuesYaml,
+		deployment.ChartValuesForDeployment(deployColour, cliFlags[APP_VERSION]),
+		helmClient,
+		cliFlags[CHART_DIR])
 	log.Printf("Successfully deployed \033[32m%s\033[97m", deploymentName)
 	PrintRelease(deployedRelease)
 
-	log.Println("Preparing to route live traffic to newly deployed release")
-	log.Println("Setting deployment-specific chart values..")
-	chartValues = editChartValues(chartValuesYaml, [][]interface{}{
-		[]interface{}{"bluegreen", "is_service_release", true},
-		[]interface{}{"bluegreen", "service", "selector", "colour", deployColour},
-	})
-	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
-
-	deploymentName = deployment.DeploymentServiceName(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
-
-	log.Printf("Switching service \033[32m%s\033[97m to point at \033[32m%s\033[97m", deploymentName, deployColour)
-	deployedRelease, err = deployRelease(helmClient, deploymentName, cliFlags[CHART_DIR], chartValues)
-	runtime.PanicIfError(err)
-	log.Printf("Successfully switched service \033[32m%s\033[97m to point at \033[32m%s\033[97m", deploymentName, deployColour)
-	PrintRelease(deployedRelease)
+	log.Println("For the deployment to go live, the service selector colour will be updated")
+	serviceDeploymentName := deployment.ServiceReleaseName(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
+	log.Printf("Preparing to deploy \033[32m%s\033[97m..", serviceDeploymentName)
+	deployedServiceRelease := releaseWithValues(
+		serviceDeploymentName,
+		chartValuesYaml,
+		deployment.ChartValuesForServiceRelease(deployColour),
+		helmClient,
+		cliFlags[CHART_DIR])
+	log.Printf("Successfully deployed \033[32m%s\033[97m, the service is now live!", serviceDeploymentName)
+	PrintRelease(deployedServiceRelease)
 	return nil
 }
 
@@ -181,6 +179,18 @@ func buildHelmClient() *helm.Client {
 	err = helmClient.PingTiller()
 	runtime.PanicIfError(err)
 	return helmClient
+}
+
+func releaseWithValues(deploymentName string, chartValuesYaml *yaml.Yaml, chartValuesEdits [][]interface{}, helmClient *helm.Client, chartDir string) *release.Release {
+	log.Printf("Editing chart values to deploy \033[32m%s\033[97m..", deploymentName)
+	chartValues := editChartValues(chartValuesYaml, chartValuesEdits)
+	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
+
+	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
+	deployedRelease, err := deployRelease(helmClient, deploymentName, chartDir, chartValues)
+	//if err, ensure release is rolled back to last stable version
+	runtime.PanicIfError(err)
+	return deployedRelease
 }
 
 func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte) (*release.Release, error) {
