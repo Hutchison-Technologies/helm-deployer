@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/charts"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/deployment"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
@@ -63,11 +64,13 @@ func Run() error {
 	log.Println("Successfully parsed CLI flags:")
 	PrintMap(cliFlags)
 
+	log.Println("Asserting that this is a bluegreen microservice chart..")
+	assertChartIsBlueGreen(cliFlags[CHART_DIR])
+	log.Println("This is a bluegreen microservice chart!")
+
 	log.Println("Determining deploy colour..")
 	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
 	log.Printf("Determined deploy colour: \033[32m%s\033[97m", deployColour)
-
-	//TODO: examine requirements.yaml to ensure blue-green-microservice is a dependency, and it is aliased to bluegreen
 
 	log.Println("Loading chart values..")
 	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
@@ -116,6 +119,15 @@ func parseCLIFlags(flagsToParse []*Flag) map[string]string {
 	cliFlags, err := HandleParseFlags(potentialParsedFlags, potentialParseFlagsErr)
 	runtime.PanicIfError(err)
 	return cliFlags
+}
+
+func assertChartIsBlueGreen(chartDir string) {
+	requirementsYamlPath := charts.RequirementsYamlPath(chartDir)
+	log.Printf("Checking \033[32m%s\033[97m for blue-green-microservice dependency..", requirementsYamlPath)
+	hasBlueGreenDependency := charts.HasDependency(requirementsYamlPath, "blue-green-microservice", "bluegreen")
+	if !hasBlueGreenDependency {
+		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency \033[32mblue-green-microservice\033[97m must be present and aliased to \033[32mbluegreen\033[97m in the \033[32m%s\033[97m file in order to deploy using this program.", requirementsYamlPath)))
+	}
 }
 
 func loadChartValues(chartDir, targetEnv string) *yaml.Yaml {

@@ -1,0 +1,8 @@
+dependencies:
+  - name: unaliased-dep
+    version: ">=0.0.0"
+    repository: https://madeup.chart.museum.com
+  - name: aliased-dep
+    version: ">=0.0.0"
+    repository: https://madeup.chart.museum.com
+    alias: aliaseddep
