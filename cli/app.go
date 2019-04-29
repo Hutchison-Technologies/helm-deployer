@@ -22,11 +22,12 @@ import (
 )
 
 const (
-	CHART_DIR      = "chart-dir"
-	APP_NAME       = "app-name"
-	APP_VERSION    = "app-version"
-	TARGET_ENV     = "target-env"
-	DEFAULT_COLOUR = "blue"
+	CHART_DIR               = "chart-dir"
+	APP_NAME                = "app-name"
+	APP_VERSION             = "app-version"
+	TARGET_ENV              = "target-env"
+	DEFAULT_COLOUR          = "blue"
+	RELEASE_UPGRADE_TIMEOUT = 300
 )
 
 var flags = []*Flag{
@@ -181,16 +182,27 @@ func buildHelmClient() *helm.Client {
 	return helmClient
 }
 
-func releaseWithValues(deploymentName string, chartValuesYaml *yaml.Yaml, chartValuesEdits [][]interface{}, helmClient *helm.Client, chartDir string) *release.Release {
-	log.Printf("Editing chart values to deploy \033[32m%s\033[97m..", deploymentName)
+func releaseWithValues(releaseName string, chartValuesYaml *yaml.Yaml, chartValuesEdits [][]interface{}, helmClient *helm.Client, chartDir string) *release.Release {
+	log.Printf("Editing chart values to deploy \033[32m%s\033[97m..", releaseName)
 	chartValues := editChartValues(chartValuesYaml, chartValuesEdits)
 	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
 
-	log.Printf("Deploying: \033[32m%s\033[97m..", deploymentName)
-	deployedRelease, err := deployRelease(helmClient, deploymentName, chartDir, chartValues)
+	log.Printf("Deploying: \033[32m%s\033[97m..", releaseName)
+	deployedRelease, err := deployRelease(helmClient, releaseName, chartDir, chartValues)
 	//if err, ensure release is rolled back to last stable version
-	runtime.PanicIfError(err)
-	return deployedRelease
+	if err != nil {
+		log.Printf("Something went wrong when deploying \033[32m%s\033[97m, determining whether rollback is necessary..", releaseName)
+		if shouldRollBack(helmClient, releaseName) {
+			log.Println("Rollback is necessary")
+			rollback(helmClient, releaseName)
+		} else {
+			log.Println("Current release is ok, nothing to do")
+		}
+		runtime.PanicIfError(err)
+		return nil
+	} else {
+		return deployedRelease
+	}
 }
 
 func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte) (*release.Release, error) {
@@ -231,7 +243,7 @@ func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartV
 		}
 		fallthrough
 	case deployment.ReleaseCourse.UPGRADE:
-		log.Println("Upgrading release..")
+		log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
 		upgradeResponse, err := upgradeRelease(helmClient, releaseName, chartDir, chartValues)
 		if err != nil {
 			return nil, err
@@ -249,4 +261,16 @@ func upgradeRelease(helmClient *helm.Client, releaseName, chartDir string, chart
 		return nil, err
 	}
 	return res, nil
+}
+
+func shouldRollBack(helmClient *helm.Client, releaseName string) bool {
+	releaseStatus, err := helmClient.ReleaseStatus(releaseName)
+	runtime.PanicIfError(err)
+	return releaseStatus.Info.Status.Code != release.Status_DEPLOYED
+}
+
+func rollback(helmClient *helm.Client, releaseName string) {
+	// releaseHistory, err := helmClient.ReleaseHistory(releaseName)
+	// runtime.PanicIfError(err)
+	// releaseHistory.Releases[0].Info.Status.Code == release.
 }
