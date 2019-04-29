@@ -130,14 +130,8 @@ func loadChartValues(chartDir, targetEnv string) *yaml.Yaml {
 }
 
 func editChartValues(valuesYaml *yaml.Yaml, settings [][]interface{}) []byte {
-	for _, setting := range settings {
-		err := valuesYaml.Set(setting...)
-		runtime.PanicIfError(err)
-	}
-	saveErr := valuesYaml.Save()
-	runtime.PanicIfError(saveErr)
-	values, convertErr := valuesYaml.ToByteArray()
-	runtime.PanicIfError(convertErr)
+	values, err := charts.EditValuesYaml(valuesYaml, settings)
+	runtime.PanicIfError(err)
 	return values
 }
 

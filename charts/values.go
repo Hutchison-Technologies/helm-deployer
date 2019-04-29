@@ -19,3 +19,21 @@ func LoadValuesYaml(path string) (*yaml.Yaml, error) {
 
 	return values, nil
 }
+
+func EditValuesYaml(valuesYaml *yaml.Yaml, settings [][]interface{}) ([]byte, error) {
+	for _, setting := range settings {
+		err := valuesYaml.Set(setting...)
+		if err != nil {
+			return nil, err
+		}
+	}
+	err := valuesYaml.Save()
+	if err != nil {
+		return nil, err
+	}
+	values, err := valuesYaml.ToByteArray()
+	if err != nil {
+		return nil, err
+	}
+	return values, nil
+}
