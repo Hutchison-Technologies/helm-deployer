@@ -186,7 +186,8 @@ func releaseWithValues(releaseName string, chartValuesYaml *yaml.Yaml, chartValu
 	log.Printf("Deploying: %s..", Green(releaseName))
 	deployedRelease, err := deployRelease(helmClient, releaseName, chartDir, chartValues)
 	if err != nil {
-		log.Printf("Something went wrong when deploying %s, determining whether rollback is necessary..", Green(releaseName))
+		log.Printf("Error deploying %s: %s", Green(releaseName), err.Error())
+		log.Println("Determining whether rollback is necessary..")
 		if shouldRollBack(helmClient, releaseName) {
 			log.Println("Rollback is necessary")
 			rollbackErr := rollback(helmClient, releaseName)
