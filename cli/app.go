@@ -7,6 +7,7 @@ import (
 	"github.com/Hutchison-Technologies/bluegreen-deployer/deployment"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/yaml"
+	"github.com/Hutchison-Technologies/bluegreen-deployer/h3lm"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/k8s"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/kubectl"
 	"github.com/Hutchison-Technologies/bluegreen-deployer/runtime"
@@ -28,6 +29,8 @@ const (
 	TARGET_ENV              = "target-env"
 	DEFAULT_COLOUR          = "blue"
 	RELEASE_UPGRADE_TIMEOUT = 300
+	ROLLBACK_VERSION_POOL   = 50
+	ROLLBACK_TIMEOUT        = 600
 )
 
 var flags = []*Flag{
@@ -57,13 +60,6 @@ var flags = []*Flag{
 	},
 }
 
-const GREEN = "\033[32m%s\033[97m"
-
-//TODO: use everywhere
-func wrapWithGreen(ster string) string {
-	return fmt.Sprintf(GREEN, ster)
-}
-
 func Run() error {
 	log.Println("Starting bluegreen-deployer..")
 
@@ -78,7 +74,7 @@ func Run() error {
 
 	log.Println("Determining deploy colour..")
 	deployColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
-	log.Printf("Determined deploy colour: %s", wrapWithGreen(deployColour))
+	log.Printf("Determined deploy colour: %s", Green(deployColour))
 
 	log.Println("Loading chart values..")
 	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
@@ -89,26 +85,26 @@ func Run() error {
 	log.Println("Successfully connected helm client!")
 
 	deploymentName := deployment.DeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
-	log.Printf("Preparing to deploy \033[32m%s\033[97m..", deploymentName)
+	log.Printf("Preparing to deploy %s..", Green(deploymentName))
 	deployedRelease := releaseWithValues(
 		deploymentName,
 		chartValuesYaml,
 		deployment.ChartValuesForDeployment(deployColour, cliFlags[APP_VERSION]),
 		helmClient,
 		cliFlags[CHART_DIR])
-	log.Printf("Successfully deployed \033[32m%s\033[97m", deploymentName)
+	log.Printf("Successfully deployed %s", Green(deploymentName))
 	PrintRelease(deployedRelease)
 
 	log.Println("For the deployment to go live, the service selector colour will be updated")
 	serviceDeploymentName := deployment.ServiceReleaseName(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
-	log.Printf("Preparing to deploy \033[32m%s\033[97m..", serviceDeploymentName)
+	log.Printf("Preparing to deploy %s..", Green(serviceDeploymentName))
 	deployedServiceRelease := releaseWithValues(
 		serviceDeploymentName,
 		chartValuesYaml,
 		deployment.ChartValuesForServiceRelease(deployColour),
 		helmClient,
 		cliFlags[CHART_DIR])
-	log.Printf("Successfully deployed \033[32m%s\033[97m, the service is now live!", serviceDeploymentName)
+	log.Printf("Successfully deployed %s, the service is now live!", Green(serviceDeploymentName))
 	PrintRelease(deployedServiceRelease)
 	return nil
 }
@@ -122,10 +118,10 @@ func parseCLIFlags(flagsToParse []*Flag) map[string]string {
 
 func assertChartIsBlueGreen(chartDir string) {
 	requirementsYamlPath := charts.RequirementsYamlPath(chartDir)
-	log.Printf("Checking \033[32m%s\033[97m for blue-green-microservice dependency..", requirementsYamlPath)
+	log.Printf("Checking %s for blue-green-microservice dependency..", Green(requirementsYamlPath))
 	hasBlueGreenDependency := charts.HasDependency(requirementsYamlPath, "blue-green-microservice", "bluegreen")
 	if !hasBlueGreenDependency {
-		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency \033[32mblue-green-microservice\033[97m must be present and aliased to \033[32mbluegreen\033[97m in the \033[32m%s\033[97m file in order to deploy using this program.", requirementsYamlPath)))
+		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency %s must be present and aliased to %s in the %s file in order to deploy using this program.", Green("blue-green-microservice"), Green("bluegreen"), Green(requirementsYamlPath))))
 	}
 }
 
@@ -147,15 +143,15 @@ func determineDeployColour(targetEnv, appName string) string {
 	kubeClient := kubeCtlClient()
 	log.Println("Successfully initialised kubectl")
 
-	log.Printf("Getting the offline service of \033[32m%s\033[97m in \033[32m%s\033[97m", appName, targetEnv)
+	log.Printf("Getting the offline service of %s in %s", Green(appName), Green(targetEnv))
 	offlineService, err := deployment.GetOfflineService(kubeClient, targetEnv, appName)
 	if err != nil {
 		log.Println(err.Error())
 	}
 	if err != nil || offlineService == nil {
-		log.Printf("Unable to locate offline service, this might be the first deploy, defaulting to: \033[32m%s\033[97m", DEFAULT_COLOUR)
+		log.Printf("Unable to locate offline service, this might be the first deploy, defaulting to: %s", Green(DEFAULT_COLOUR))
 	} else {
-		log.Printf("Found offline service \033[32m%s\033[97m, checking selector colour..", offlineService.GetName())
+		log.Printf("Found offline service %s, checking selector colour..", Green(offlineService.GetName()))
 		offlineColour := k8s.ServiceSelectorColour(offlineService)
 		if offlineColour != "" {
 			return offlineColour
@@ -176,37 +172,36 @@ func buildHelmClient() *helm.Client {
 	runtime.PanicIfError(err)
 	log.Println("Established tiller tunnel")
 	helmClient := helm.NewClient(helm.Host(tillerHost), helm.ConnectTimeout(60))
-	log.Printf("Configured helm client, pinging tiller at: \033[32m%s\033[97m..", tillerHost)
+	log.Printf("Configured helm client, pinging tiller at: %s..", Green(tillerHost))
 	err = helmClient.PingTiller()
 	runtime.PanicIfError(err)
 	return helmClient
 }
 
 func releaseWithValues(releaseName string, chartValuesYaml *yaml.Yaml, chartValuesEdits [][]interface{}, helmClient *helm.Client, chartDir string) *release.Release {
-	log.Printf("Editing chart values to deploy \033[32m%s\033[97m..", releaseName)
+	log.Printf("Editing chart values to deploy %s..", Green(releaseName))
 	chartValues := editChartValues(chartValuesYaml, chartValuesEdits)
-	log.Printf("Successfully edited chart values:\n\033[33m%s\033[97m", string(chartValues))
+	log.Printf("Successfully edited chart values:\n%s", Orange(string(chartValues)))
 
-	log.Printf("Deploying: \033[32m%s\033[97m..", releaseName)
+	log.Printf("Deploying: %s..", Green(releaseName))
 	deployedRelease, err := deployRelease(helmClient, releaseName, chartDir, chartValues)
-	//if err, ensure release is rolled back to last stable version
 	if err != nil {
-		log.Printf("Something went wrong when deploying \033[32m%s\033[97m, determining whether rollback is necessary..", releaseName)
+		log.Printf("Something went wrong when deploying %s, determining whether rollback is necessary..", Green(releaseName))
 		if shouldRollBack(helmClient, releaseName) {
 			log.Println("Rollback is necessary")
-			rollback(helmClient, releaseName)
+			rollbackErr := rollback(helmClient, releaseName)
+			runtime.PanicIfError(rollbackErr)
 		} else {
 			log.Println("Current release is ok, nothing to do")
 		}
-		runtime.PanicIfError(err)
-		return nil
+		panic(fmt.Errorf("Original deploy error: %s", err))
 	} else {
 		return deployedRelease
 	}
 }
 
 func deployRelease(helmClient *helm.Client, releaseName, chartDir string, chartValues []byte) (*release.Release, error) {
-	log.Printf("Checking for existing \033[32m%s\033[97m release..", releaseName)
+	log.Printf("Checking for existing %s release..", Green(releaseName))
 	releaseContent, err := helmClient.ReleaseContent(releaseName)
 	existingReleaseCode := release.Status_UNKNOWN
 
@@ -269,8 +264,33 @@ func shouldRollBack(helmClient *helm.Client, releaseName string) bool {
 	return releaseStatus.Info.Status.Code != release.Status_DEPLOYED
 }
 
-func rollback(helmClient *helm.Client, releaseName string) {
-	// releaseHistory, err := helmClient.ReleaseHistory(releaseName)
-	// runtime.PanicIfError(err)
-	// releaseHistory.Releases[0].Info.Status.Code == release.
+func rollback(helmClient *helm.Client, releaseName string) error {
+	log.Printf("Gathering up to the last %d release(s)..", ROLLBACK_VERSION_POOL)
+	releaseHistory, err := helmClient.ReleaseHistory(releaseName, helm.WithMaxHistory(ROLLBACK_VERSION_POOL))
+	runtime.PanicIfError(err)
+	if len(releaseHistory.Releases) == 0 {
+		return errors.New("No prior release(s) to roll back to!")
+	}
+
+	log.Printf("Found %d prior release(s), filtering for successful release(s)..", len(releaseHistory.Releases))
+	successfullyDeployedReleases := h3lm.FilterReleasesByStatusCode(releaseHistory.Releases, release.Status_DEPLOYED)
+
+	if len(successfullyDeployedReleases) == 0 {
+		return errors.New("No successfully deployed prior release(s) to roll back to!")
+	}
+
+	log.Printf("Found %d prior successful release(s), finding the latest..", len(successfullyDeployedReleases))
+	latestSuccessfulRelease := h3lm.LatestRelease(successfullyDeployedReleases)
+
+	log.Println("Latest successful release:")
+	PrintRelease(latestSuccessfulRelease)
+
+	log.Println("Rolling back..")
+	rollbackResponse, err := helmClient.RollbackRelease(releaseName, helm.RollbackForce(true), helm.RollbackRecreate(true), helm.RollbackWait(true), helm.RollbackTimeout(ROLLBACK_TIMEOUT), helm.RollbackVersion(latestSuccessfulRelease.Version))
+	if err != nil {
+		return fmt.Errorf("Failed to rollback: %s", err)
+	}
+	log.Printf("Successfully rolled %s back:", Green(releaseName))
+	PrintRelease(rollbackResponse.Release)
+	return nil
 }
