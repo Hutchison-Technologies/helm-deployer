@@ -18,6 +18,6 @@ func Test_DetermineCommand_Returns_BLUEGREEN_When_Given_Bluegreen_String(t *test
 	assert.Equal(t, Command.BLUEGREEN, DetermineCommand("bluegreen"))
 }
 
-func Test_DetermineCommand_Returns_STANDARD_When_Given_Standard_String(t *testing.T) {
-	assert.Equal(t, Command.STANDARD, DetermineCommand("standard"))
+func Test_DetermineCommand_Returns_STANDARD_CHART_When_Given_standard_chart_String(t *testing.T) {
+	assert.Equal(t, Command.STANDARD_CHART, DetermineCommand("standard-chart"))
 }

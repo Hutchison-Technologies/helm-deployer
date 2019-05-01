@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -16,11 +17,12 @@ type Flag struct {
 }
 
 func ParseFlags(cliFlags []*Flag) (map[string]string, error) {
+	flagSet := flag.NewFlagSet("", flag.ExitOnError)
 	parsedValues := make(map[string]string)
 	for _, cliFlag := range cliFlags {
-		cliFlag.Value = flag.String(cliFlag.Key, cliFlag.Default, cliFlag.Description)
+		cliFlag.Value = flagSet.String(cliFlag.Key, cliFlag.Default, cliFlag.Description)
 	}
-	flag.Parse()
+	flagSet.Parse(os.Args[2:])
 	errorMessages := make([]string, 0)
 	for _, cliFlag := range cliFlags {
 		if *cliFlag.Value == "" {

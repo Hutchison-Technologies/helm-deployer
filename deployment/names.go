@@ -4,8 +4,12 @@ import (
 	"fmt"
 )
 
-func DeploymentName(targetEnv, colour, appName string) string {
+func BlueGreenDeploymentName(targetEnv, colour, appName string) string {
 	return fmt.Sprintf("%s-%s-%s", targetEnv, colour, appName)
+}
+
+func StandardChartDeploymentName(targetEnv, appName string) string {
+	return fmt.Sprintf("%s-%s", targetEnv, appName)
 }
 
 func OfflineServiceName(targetEnv, appName string) string {

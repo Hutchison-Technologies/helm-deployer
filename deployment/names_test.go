@@ -2,28 +2,43 @@ package deployment
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func Test_DeploymentName_Returns_ValidAppName(t *testing.T) {
-	assert.True(t, IsValidAppName(DeploymentName("prod", "blue", "some-api")))
+func Test_BlueGreenDeploymentName_Returns_ValidAppName(t *testing.T) {
+	assert.True(t, IsValidAppName(BlueGreenDeploymentName("prod", "blue", "some-api")))
 }
 
-func Test_DeploymentName_Returns_Name_PrefixedWith_TargetEnv(t *testing.T) {
+func Test_BlueGreenDeploymentName_Returns_Name_PrefixedWith_TargetEnv(t *testing.T) {
 	targetEnv := "prod"
-	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf("^%s-.*", targetEnv)), DeploymentName(targetEnv, "blue", "some-api"))
+	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf("^%s-.*", targetEnv)), BlueGreenDeploymentName(targetEnv, "blue", "some-api"))
 }
 
-func Test_DeploymentName_Returns_Name_Containing_AppName(t *testing.T) {
+func Test_BlueGreenDeploymentName_Returns_Name_Containing_AppName(t *testing.T) {
 	appName := "some-api"
-	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf(".*-%s.*", appName)), DeploymentName("prod", "blue", appName))
+	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf(".*-%s.*", appName)), BlueGreenDeploymentName("prod", "blue", appName))
 }
 
-func Test_DeploymentName_Returns_Name_Containing_Colour(t *testing.T) {
+func Test_BlueGreenDeploymentName_Returns_Name_Containing_Colour(t *testing.T) {
 	colour := "green"
-	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf(".*-%s.*", colour)), DeploymentName("prod", colour, "some-api"))
+	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf(".*-%s.*", colour)), BlueGreenDeploymentName("prod", colour, "some-api"))
+}
+
+func Test_StandardChartDeploymentName_Returns_ValidAppName(t *testing.T) {
+	assert.True(t, IsValidAppName(StandardChartDeploymentName("prod", "some-api")))
+}
+
+func Test_StandardChartDeploymentName_Returns_Name_PrefixedWith_TargetEnv(t *testing.T) {
+	targetEnv := "prod"
+	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf("^%s-.*", targetEnv)), StandardChartDeploymentName(targetEnv, "some-api"))
+}
+
+func Test_StandardChartDeploymentName_Returns_Name_Affixed_With_AppName(t *testing.T) {
+	appName := "some-api"
+	assert.Regexp(t, regexp.MustCompile(fmt.Sprintf(".*-%s$", appName)), StandardChartDeploymentName("prod", appName))
 }
 
 func Test_ServiceReleaseName_Returns_ValidAppName(t *testing.T) {
