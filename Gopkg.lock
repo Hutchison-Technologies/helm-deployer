@@ -1175,6 +1175,7 @@
   input-imports = [
     "github.com/databus23/helm-diff/diff",
     "github.com/databus23/helm-diff/manifest",
+    "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/stretchr/testify/assert",
     "gopkg.in/yaml.v1",
     "k8s.io/api/core/v1",
@@ -1187,6 +1188,7 @@
     "k8s.io/helm/pkg/helm",
     "k8s.io/helm/pkg/helm/portforwarder",
     "k8s.io/helm/pkg/proto/hapi/release",
+    "k8s.io/helm/pkg/proto/hapi/services",
     "k8s.io/helm/pkg/storage/errors",
   ]
   solver-name = "gps-cdcl"

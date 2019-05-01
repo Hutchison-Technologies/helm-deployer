@@ -16,6 +16,7 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/release"
