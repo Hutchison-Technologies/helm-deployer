@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -63,6 +64,15 @@ var flags = []*Flag{
 
 func Run() error {
 	log.Println("Starting helm-deployer..")
+
+	switch DetermineCommand(os.Args[1]) {
+	case Command.BLUEGREEN:
+		return nil
+	case Command.STANDARD:
+		return nil
+	default:
+		return errors.New(fmt.Sprintf("Unknown command: %s\nShould be one of: %s", Green(os.Args[1]), strings.Join([]string{Orange(Command.BLUEGREEN), Orange(Command.STANDARD)}, ", ")))
+	}
 
 	log.Println("Parsing CLI flags..")
 	cliFlags := parseCLIFlags(flags)
