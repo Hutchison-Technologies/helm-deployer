@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Hutchison-Technologies/bluegreen-deployer/cli"
+	"github.com/Hutchison-Technologies/helm-deployer/cli"
 )
 
 func main() {

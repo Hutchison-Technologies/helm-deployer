@@ -2,12 +2,12 @@ package deployment
 
 import (
 	"fmt"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/k8s"
+	"strings"
+
+	"github.com/Hutchison-Technologies/helm-deployer/k8s"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/helm/pkg/proto/hapi/release"
 	storageerrors "k8s.io/helm/pkg/storage/errors"
-	"strings"
 )
 
 type alias = int

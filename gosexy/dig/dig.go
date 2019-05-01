@@ -6,8 +6,9 @@ package dig
 
 import (
 	"fmt"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/to"
 	"reflect"
+
+	"github.com/Hutchison-Technologies/helm-deployer/gosexy/to"
 )
 
 /*

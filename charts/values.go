@@ -3,8 +3,9 @@ package charts
 import (
 	"errors"
 	"fmt"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/yaml"
+
+	"github.com/Hutchison-Technologies/helm-deployer/filesystem"
+	"github.com/Hutchison-Technologies/helm-deployer/gosexy/yaml"
 )
 
 func LoadValuesYaml(path string) (*yaml.Yaml, error) {

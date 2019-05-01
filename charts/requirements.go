@@ -1,8 +1,8 @@
 package charts
 
 import (
-	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/yaml"
+	"github.com/Hutchison-Technologies/helm-deployer/filesystem"
+	"github.com/Hutchison-Technologies/helm-deployer/gosexy/yaml"
 )
 
 func HasDependency(requirementsYamlPath, depName, depAlias string) bool {

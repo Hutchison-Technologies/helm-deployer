@@ -3,23 +3,23 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/charts"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/deployment"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/yaml"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/h3lm"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/k8s"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/kubectl"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/runtime"
+	"log"
+	"os"
+
+	"github.com/Hutchison-Technologies/helm-deployer/charts"
+	"github.com/Hutchison-Technologies/helm-deployer/deployment"
+	"github.com/Hutchison-Technologies/helm-deployer/filesystem"
+	"github.com/Hutchison-Technologies/helm-deployer/gosexy/yaml"
+	"github.com/Hutchison-Technologies/helm-deployer/h3lm"
+	"github.com/Hutchison-Technologies/helm-deployer/k8s"
+	"github.com/Hutchison-Technologies/helm-deployer/kubectl"
+	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/release"
 	"k8s.io/helm/pkg/proto/hapi/services"
-	"log"
-	"os"
 )
 
 const (
@@ -61,7 +61,7 @@ var flags = []*Flag{
 }
 
 func Run() error {
-	log.Println("Starting bluegreen-deployer..")
+	log.Println("Starting helm-deployer..")
 
 	log.Println("Parsing CLI flags..")
 	cliFlags := parseCLIFlags(flags)

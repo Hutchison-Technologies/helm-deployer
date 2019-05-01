@@ -6,12 +6,13 @@ package yaml
 
 import (
 	"fmt"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/dig"
-	"gopkg.in/yaml.v1"
 	"log"
 	"os"
 	"reflect"
 	"strings"
+
+	"github.com/Hutchison-Technologies/helm-deployer/gosexy/dig"
+	"gopkg.in/yaml.v1"
 )
 
 type Yaml struct {

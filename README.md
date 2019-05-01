@@ -1,4 +1,4 @@
-# Bluegreen-deployer
+# Helm-deployer
 
 ## Development
 
@@ -20,46 +20,46 @@ Create the correct package directory in your [go workspace](https://golang.org/d
 
 Checkout the repository into the above directory:
 
-    $ cd $GOPATH/src/github.com/Hutchison-Technologies && git clone git@github.com:Hutchison-Technologies/bluegreen-deployer.git
+    $ cd $GOPATH/src/github.com/Hutchison-Technologies && git clone git@github.com:Hutchison-Technologies/helm-deployer.git
 
 Enter the root of the project and install the dependencies using [dep](https://golang.github.io/dep/):
 
-    $ cd bluegreen-deployer && dep ensure
+    $ cd helm-deployer && dep ensure
 
 ### Building
 
 To build the binary, run:
 
-    $ cd $GOPATH/src/github.com/Hutchison-Technologies/bluegreen-deployer && go build
+    $ cd $GOPATH/src/github.com/Hutchison-Technologies/helm-deployer && go build
 
 ### Installing
 
 To install the binary (meaning you can run it from your terminal anywhere), run:
 
-    $ cd $GOPATH/src/github.com/Hutchison-Technologies/bluegreen-deployer && go install
+    $ cd $GOPATH/src/github.com/Hutchison-Technologies/helm-deployer && go install
 
 You should now be able to run the program from anywhere:
 
-    $ bluegreen-deployer
+    $ helm-deployer
 
 ### Running
 
 If you have built the project, simply execute the binary:
 
-    $ $GOPATH/src/github.com/Hutchison-Technologies/bluegreen-deployer/bluegreen-deployer
+    $ $GOPATH/src/github.com/Hutchison-Technologies/helm-deployer/helm-deployer
 
 OR if you have installed the binary:
 
-    $ bluegreen-deployer
+    $ helm-deployer
 
 ### Testing
 
 To run the unit tests, run:
 
-    $ cd $GOPATH/src/github.com/Hutchison-Technologies/bluegreen-deployer && go test ./...
+    $ cd $GOPATH/src/github.com/Hutchison-Technologies/helm-deployer && go test ./...
 
 ### Help
 
 To print help (after installing), run:
 
-    $ bluegreen-deployer -h
+    $ helm-deployer -h

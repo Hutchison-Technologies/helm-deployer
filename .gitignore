@@ -12,5 +12,5 @@
 *.out
 main
 vendor
-bluegreen-deployer
+helm-deployer
 testchart

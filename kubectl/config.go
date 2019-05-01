@@ -3,10 +3,11 @@ package kubectl
 import (
 	"errors"
 	"fmt"
-	"github.com/Hutchison-Technologies/bluegreen-deployer/filesystem"
+	"path/filepath"
+
+	"github.com/Hutchison-Technologies/helm-deployer/filesystem"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"path/filepath"
 )
 
 func ConfigPath(homeDir string) (string, error) {

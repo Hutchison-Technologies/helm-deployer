@@ -1,7 +1,7 @@
 package yaml
 
 import (
-	"github.com/Hutchison-Technologies/bluegreen-deployer/gosexy/to"
+	"github.com/Hutchison-Technologies/helm-deployer/gosexy/to"
 	"testing"
 )
 
