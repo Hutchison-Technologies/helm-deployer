@@ -22,9 +22,15 @@ func HasDependency(requirementsYamlPath, depName, depAlias string) bool {
 			continue
 		}
 		name, nameOk := asDep["name"]
-		alias, aliasOk := asDep["alias"]
-		if nameOk && aliasOk && name == depName && alias == depAlias {
-			return true
+		if depAlias != "" {
+			alias, aliasOk := asDep["alias"]
+			if nameOk && aliasOk && name == depName && alias == depAlias {
+				return true
+			}
+		} else {
+			if nameOk && name == depName {
+				return true
+			}
 		}
 	}
 	return false

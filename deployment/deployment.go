@@ -58,3 +58,9 @@ func ChartValuesForServiceRelease(deployColour string) [][]interface{} {
 		[]interface{}{"bluegreen", "service", "selector", "colour", deployColour},
 	}
 }
+
+func ChartValuesForMicroserviceDeployment(appVersion string) [][]interface{} {
+	return [][]interface{}{
+		[]interface{}{"microservice", "deployment", "version", appVersion},
+	}
+}

@@ -43,6 +43,9 @@ func Run() error {
 	case Command.STANDARD_CHART:
 		log.Println("Running standard-chart deploy..")
 		return RunStandardChartDeploy()
+	case Command.MICROSERVICE:
+		log.Println("Running microservice deploy..")
+		return RunMicroserviceDeploy()
 	default:
 		return errors.New(fmt.Sprintf("Unknown command: %s\nShould be one of: %s", Green(os.Args[1]), strings.Join([]string{Orange(Command.BLUEGREEN), Orange(Command.STANDARD_CHART)}, ", ")))
 	}
