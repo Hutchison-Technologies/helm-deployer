@@ -10,6 +10,9 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/filesystem"
 	"github.com/Hutchison-Technologies/helm-deployer/k8s"
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 func BlueGreenFlags() []*Flag {
@@ -85,6 +88,33 @@ func RunBlueGreenDeploy() error {
 		cliFlags[CHART_DIR])
 	log.Printf("Successfully deployed %s, the service is now live!", Green(serviceDeploymentName))
 	PrintRelease(deployedServiceRelease)
+
+	log.Println("To reduce costing, number of pods in offline deployments will now be scaled to zero.")
+	currentOfflineColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
+	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Build string to search for
+		offlineDeploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], currentOfflineColour, cliFlags[APP_NAME])
+
+		// Retrieve the latest version of Deployment before attempting update
+		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
+
+		result, getErr := deploymentsClient.Get(offlineDeploymentName, metav1.GetOptions{})
+		if getErr != nil {
+			panic(fmt.Errorf("Failed to get latest version of Deployment: %v", getErr))
+		}
+
+		var numberOfReplicas int32 = 0
+		result.Spec.Replicas = &numberOfReplicas
+		_, updateErr := deploymentsClient.Update(result)
+		return updateErr
+	})
+	if retryErr != nil {
+		panic(fmt.Errorf("Update failed: %v", retryErr))
+	}
+	log.Println("Updated deployment scaling to zero replicas...")
+	log.Println("Updates complete!")
+
 	return nil
 }
 

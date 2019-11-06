@@ -2,20 +2,30 @@ package kubectl
 
 import (
 	"fmt"
+	"os"
+
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/typed/core/v1"
+	appsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
 	"k8s.io/helm/pkg/helm/portforwarder"
-	"os"
 )
 
-func Client() (v1.CoreV1Interface, error) {
+func Client() (corev1.CoreV1Interface, error) {
 	_, client, err := getKubeClient()
 	if err != nil {
 		return nil, err
 	}
 	return client.CoreV1(), nil
+}
+
+func AppsClient() (appsv1.AppsV1Interface, error) {
+	_, client, err := getKubeClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.AppsV1(), nil
 }
 
 func SetupTillerTunnel() (string, error) {
