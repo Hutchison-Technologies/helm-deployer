@@ -15,6 +15,7 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
+	appv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/helm/pkg/helm"
@@ -73,6 +74,12 @@ func editChartValues(valuesYaml *yaml.Yaml, settings [][]interface{}) []byte {
 
 func kubeCtlClient() v1.CoreV1Interface {
 	client, err := kubectl.Client()
+	runtime.PanicIfError(err)
+	return client
+}
+
+func kubeCtlAppClient() appv1.AppsV1Interface {
+	client, err := kubectl.AppsClient()
 	runtime.PanicIfError(err)
 	return client
 }
