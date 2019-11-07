@@ -98,7 +98,6 @@ func RunBlueGreenDeploy() error {
 
 		// Retrieve the latest version of Deployment before attempting update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
-
 		result, getErr := deploymentsClient.Get(offlineDeploymentName, metav1.GetOptions{})
 		if getErr != nil {
 			panic(fmt.Errorf("Failed to get latest version of Deployment: %v", getErr))
@@ -106,13 +105,20 @@ func RunBlueGreenDeploy() error {
 
 		var numberOfReplicas int32 = 0
 		result.Spec.Replicas = &numberOfReplicas
+
 		_, updateErr := deploymentsClient.Update(result)
 		return updateErr
 	})
+
 	if retryErr != nil {
 		panic(fmt.Errorf("Update failed: %v", retryErr))
 	}
 	log.Println("Updated deployment scaling to zero replicas...")
+
+	//HPA update here if we get errors.
+	//Fetch HPA offlineDeploymentName-hpa
+	//Update result.spec.minReplicas: 0, result.spec.maxReplicas: 0
+
 	log.Println("Updates complete!")
 
 	return nil
