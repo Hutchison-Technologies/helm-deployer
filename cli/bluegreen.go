@@ -92,11 +92,12 @@ func RunBlueGreenDeploy() error {
 	log.Println("To reduce costing, number of pods in offline deployments will now be scaled to zero.")
 	currentOfflineColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
 	log.Printf("Offline colour is %s", currentOfflineColour)
+
+	// Build strings for offline deployment and autoscaler
 	offlineDeploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], currentOfflineColour, cliFlags[APP_NAME])
 	offlineHPAName := fmt.Sprintf("%s-hpa", offlineDeploymentName)
 
 	log.Printf("We will first remove the Horizontal Pod Autoscaler (%s) from the offline service.", offlineHPAName)
-	//Remove autoscaler from offline
 	hpaClient := kubeCtlHPAClient().HorizontalPodAutoscalers(apiv1.NamespaceDefault)
 	deletePolicy := metav1.DeletePropagationForeground
 	deletionError := hpaClient.Delete(offlineHPAName, &metav1.DeleteOptions{
@@ -110,7 +111,6 @@ func RunBlueGreenDeploy() error {
 
 	log.Println("Now updating the offline service replica set to zero.")
 	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
-	// Build strings for offline deployment and autoscaler
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Retrieve the latest version of Deployment before attempting update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
