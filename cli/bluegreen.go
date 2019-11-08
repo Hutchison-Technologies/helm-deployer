@@ -10,9 +10,6 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/filesystem"
 	"github.com/Hutchison-Technologies/helm-deployer/k8s"
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
-	apiv1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 )
 
 func BlueGreenFlags() []*Flag {
@@ -98,42 +95,16 @@ func RunBlueGreenDeploy() error {
 	offlineHPAName := fmt.Sprintf("%s-hpa", offlineDeploymentName)
 
 	log.Printf("We will first remove the Horizontal Pod Autoscaler (%s) from the offline service.", offlineHPAName)
-	hpaClient := kubeCtlHPAClient().HorizontalPodAutoscalers(apiv1.NamespaceDefault)
-	deletePolicy := metav1.DeletePropagationForeground
-	deletionError := hpaClient.Delete(offlineHPAName, &metav1.DeleteOptions{
-		PropagationPolicy: &deletePolicy,
-	})
-	if deletionError != nil {
-		log.Printf("Success! Removed the HPA (%s).", offlineHPAName)
-	} else {
-		panic(deletionError)
+	deletionResult := deleteHPA(offlineHPAName)
+	if deletionResult != nil {
+		panic(fmt.Errorf("Failed to delete HPA: %v", deletionResult))
 	}
 
 	log.Println("Now updating the offline service replica set to zero.")
-	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// Retrieve the latest version of Deployment before attempting update
-		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
-		result, getErr := deploymentsClient.Get(offlineDeploymentName, metav1.GetOptions{})
-		if getErr != nil {
-			panic(fmt.Errorf("Failed to get latest version of Deployment: %v", getErr))
-		}
-
-		var numberOfReplicas int32 = 0
-		result.Spec.Replicas = &numberOfReplicas
-
-		_, updateErr := deploymentsClient.Update(result)
-		return updateErr
-	})
-	if retryErr != nil {
-		panic(fmt.Errorf("Update failed: %v", retryErr))
+	scaleReplicaSetResult := scaleReplicaSet(offlineDeploymentName)
+	if scaleReplicaSetResult != nil {
+		panic(fmt.Errorf("Failed to scale replica set HPA: %v", scaleReplicaSetResult))
 	}
-	log.Println("Updated deployment scaling to zero replicas...")
-
-	//HPA update here if we get errors.
-	//Fetch HPA offlineDeploymentName-hpa
-	//Update result.spec.minReplicas: 0, result.spec.maxReplicas: 0
-
 	log.Println("Updates complete!")
 
 	return nil

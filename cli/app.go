@@ -15,10 +15,13 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	autoscalingv1 "k8s.io/client-go/kubernetes/typed/autoscaling/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/helm/pkg/helm"
 	"k8s.io/helm/pkg/proto/hapi/release"
 	"k8s.io/helm/pkg/proto/hapi/services"
@@ -219,4 +222,37 @@ func rollback(helmClient *helm.Client, releaseName string) error {
 	log.Printf("Successfully rolled %s back:", Green(releaseName))
 	PrintRelease(rollbackResponse.Release)
 	return nil
+}
+
+func deleteHPA(offlineHPAName string) error {
+	hpaClient := kubeCtlHPAClient().HorizontalPodAutoscalers(apiv1.NamespaceDefault)
+	deletePolicy := metav1.DeletePropagationForeground
+	deletionError := hpaClient.Delete(offlineHPAName, &metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	})
+	if deletionError != nil {
+		log.Printf("Success! Removed the HPA (%s).", offlineHPAName)
+		return nil
+	}
+	panic(deletionError)
+}
+
+func scaleReplicaSet(offlineDeploymentName string) error {
+	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Retrieve the latest version of Deployment before attempting update
+		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
+		result, getErr := deploymentsClient.Get(offlineDeploymentName, metav1.GetOptions{})
+		if getErr != nil {
+			panic(fmt.Errorf("Failed to get latest version of Deployment: %v", getErr))
+		}
+
+		var numberOfReplicas int32 = 0
+		result.Spec.Replicas = &numberOfReplicas
+
+		_, updateErr := deploymentsClient.Update(result)
+		return updateErr
+	})
+
+	return retryErr
 }
