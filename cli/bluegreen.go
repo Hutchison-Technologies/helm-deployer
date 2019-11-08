@@ -91,11 +91,27 @@ func RunBlueGreenDeploy() error {
 
 	log.Println("To reduce costing, number of pods in offline deployments will now be scaled to zero.")
 	currentOfflineColour := determineDeployColour(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
-	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
-	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		// Build string to search for
-		offlineDeploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], currentOfflineColour, cliFlags[APP_NAME])
+	log.Printf("Offline colour is %s", currentOfflineColour)
+	offlineDeploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], currentOfflineColour, cliFlags[APP_NAME])
+	offlineHPAName := fmt.Sprintf("%s-hpa", offlineDeploymentName)
 
+	log.Printf("We will first remove the Horizontal Pod Autoscaler (%s) from the offline service.", offlineHPAName)
+	//Remove autoscaler from offline
+	hpaClient := kubeCtlHPAClient().HorizontalPodAutoscalers(apiv1.NamespaceDefault)
+	deletePolicy := metav1.DeletePropagationForeground
+	deletionError := hpaClient.Delete(offlineHPAName, &metav1.DeleteOptions{
+		PropagationPolicy: &deletePolicy,
+	})
+	if deletionError != nil {
+		log.Printf("Success! Removed the HPA (%s).", offlineHPAName)
+	} else {
+		panic(deletionError)
+	}
+
+	log.Println("Now updating the offline service replica set to zero.")
+	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
+	// Build strings for offline deployment and autoscaler
+	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Retrieve the latest version of Deployment before attempting update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
 		result, getErr := deploymentsClient.Get(offlineDeploymentName, metav1.GetOptions{})
@@ -109,7 +125,6 @@ func RunBlueGreenDeploy() error {
 		_, updateErr := deploymentsClient.Update(result)
 		return updateErr
 	})
-
 	if retryErr != nil {
 		panic(fmt.Errorf("Update failed: %v", retryErr))
 	}

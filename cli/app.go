@@ -16,6 +16,7 @@ import (
 	"github.com/databus23/helm-diff/diff"
 	"github.com/databus23/helm-diff/manifest"
 	appv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	autoscalingv1 "k8s.io/client-go/kubernetes/typed/autoscaling/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/helm/pkg/helm"
@@ -80,6 +81,12 @@ func kubeCtlClient() v1.CoreV1Interface {
 
 func kubeCtlAppClient() appv1.AppsV1Interface {
 	client, err := kubectl.AppsClient()
+	runtime.PanicIfError(err)
+	return client
+}
+
+func kubeCtlHPAClient() autoscalingv1.AutoscalingV1Interface {
+	client, err := kubectl.HPAClient()
 	runtime.PanicIfError(err)
 	return client
 }
