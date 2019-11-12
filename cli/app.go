@@ -226,15 +226,15 @@ func rollback(helmClient *helm.Client, releaseName string) error {
 
 func deleteHPA(offlineHPAName string) error {
 	hpaClient := kubeCtlHPAClient().HorizontalPodAutoscalers(apiv1.NamespaceDefault)
-	deletePolicy := metav1.DeletePropagationForeground
+	deletePolicy := metav1.DeletePropagationBackground
 	deletionError := hpaClient.Delete(offlineHPAName, &metav1.DeleteOptions{
 		PropagationPolicy: &deletePolicy,
 	})
 	if deletionError != nil {
-		log.Printf("Success! Removed the HPA (%s).", offlineHPAName)
-		return nil
+		log.Fatalf("Error deleting HPA (%s): %v", hpaClient, deletionError)
 	}
-	panic(deletionError)
+	log.Printf("Success! Removed the HPA (%s).", offlineHPAName)
+	return nil
 }
 
 func scaleReplicaSet(offlineDeploymentName string) error {
