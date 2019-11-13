@@ -1,5 +1,11 @@
 # Helm-deployer
 
+This application deals with the deployment of our helm charts to the appropriate cluster. This go application is hosted within a docker image, in our [hutchison-t/docker-images](https://github.com/Hutchison-Technologies/docker-images) repository, under the [helm-deployer](https://github.com/Hutchison-Technologies/docker-images/tree/master/helm-deployer) section.
+
+This is used by almost all of our Jenkins files for deployment of our services via helm.
+
+If you wish to modify this service, update it here, push to the master branch in github when happy. From here, you must rebuild the helm-deployer docker image and push it to docker hub; follow the instructions within the docker image repository.
+
 ## Development
 
 For guidance on how to develop this project, refer to the appropriate subsection below.
