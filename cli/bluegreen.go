@@ -106,7 +106,7 @@ func RunBlueGreenDeploy() error {
 		panic(fmt.Errorf("Failed to delete HPA: %v", deletionResult))
 	}
 
-	log.Println("Now updating the offline service replica set to zero.")
+	log.Println("Now updating the offline deployment replica set to zero.")
 	scaleReplicaSetResult := scaleReplicaSet(offlineDeploymentName, 0)
 	if scaleReplicaSetResult != nil {
 		panic(fmt.Errorf("Failed to scale replica set HPA: %v", scaleReplicaSetResult))
