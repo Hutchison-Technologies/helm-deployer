@@ -71,6 +71,12 @@ func RunBlueGreenDeploy() error {
 		deployment.ChartValuesForDeployment(deployColour, cliFlags[APP_VERSION]),
 		helmClient,
 		cliFlags[CHART_DIR])
+
+	log.Println("Now updating the online deployment replica set to a minimum of 1.")
+	scaleOnlineReplicaSetResult := scaleReplicaSet(deploymentName, 1)
+	if scaleOnlineReplicaSetResult != nil {
+		panic(fmt.Errorf("Failed to scale replica set HPA: %v", scaleOnlineReplicaSetResult))
+	}
 	log.Printf("Successfully deployed %s", Green(deploymentName))
 	PrintRelease(deployedRelease)
 
@@ -101,7 +107,7 @@ func RunBlueGreenDeploy() error {
 	}
 
 	log.Println("Now updating the offline service replica set to zero.")
-	scaleReplicaSetResult := scaleReplicaSet(offlineDeploymentName)
+	scaleReplicaSetResult := scaleReplicaSet(offlineDeploymentName, 0)
 	if scaleReplicaSetResult != nil {
 		panic(fmt.Errorf("Failed to scale replica set HPA: %v", scaleReplicaSetResult))
 	}

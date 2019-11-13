@@ -237,7 +237,7 @@ func deleteHPA(offlineHPAName string) error {
 	return nil
 }
 
-func scaleReplicaSet(offlineDeploymentName string) error {
+func scaleReplicaSet(offlineDeploymentName string, scaleSize int32) error {
 	deploymentsClient := kubeCtlAppClient().Deployments(apiv1.NamespaceDefault)
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Retrieve the latest version of Deployment before attempting update
@@ -247,7 +247,7 @@ func scaleReplicaSet(offlineDeploymentName string) error {
 			panic(fmt.Errorf("Failed to get latest version of Deployment: %v", getErr))
 		}
 
-		var numberOfReplicas int32 = 0
+		var numberOfReplicas int32 = scaleSize
 		result.Spec.Replicas = &numberOfReplicas
 
 		_, updateErr := deploymentsClient.Update(result)
