@@ -103,13 +103,15 @@ func RunBlueGreenDeploy() error {
 	log.Printf("We will first remove the Horizontal Pod Autoscaler (%s) from the offline service.", offlineHPAName)
 	deletionResult := deleteHPA(offlineHPAName)
 	if deletionResult != nil {
-		panic(fmt.Errorf("Failed to delete HPA: %v", deletionResult))
+		log.Printf("Failed to delete HPA: %v", deletionResult)
+		log.Println("This can happen if this is a  first deployment; skipping.")
 	}
 
-	log.Println("Now updating the offline deployment replica set to zero.")
+	log.Println("Now updating the offline service replica set to zero.")
 	scaleReplicaSetResult := scaleReplicaSet(offlineDeploymentName, 0)
 	if scaleReplicaSetResult != nil {
-		panic(fmt.Errorf("Failed to scale replica set HPA: %v", scaleReplicaSetResult))
+		log.Printf("Failed to scale replica set HPA: %v", scaleReplicaSetResult)
+		log.Println("This can happen if this is a  first deployment; skipping.")
 	}
 	log.Println("Updates complete!")
 
