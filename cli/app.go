@@ -33,9 +33,9 @@ const (
 	APP_VERSION             = "app-version"
 	TARGET_ENV              = "target-env"
 	DEFAULT_COLOUR          = "blue"
-	RELEASE_UPGRADE_TIMEOUT = 300
+	RELEASE_UPGRADE_TIMEOUT = 900
 	ROLLBACK_VERSION_POOL   = 50
-	ROLLBACK_TIMEOUT        = 600
+	ROLLBACK_TIMEOUT        = 900
 )
 
 func Run() error {
