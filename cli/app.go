@@ -231,7 +231,8 @@ func deleteHPA(offlineHPAName string) error {
 		PropagationPolicy: &deletePolicy,
 	})
 	if deletionError != nil {
-		log.Fatalf("Error deleting HPA (%s): %v", hpaClient, deletionError)
+		log.Printf("Error deleting HPA (%s): %v", hpaClient, deletionError)
+		return deletionError
 	}
 	log.Printf("Success! Removed the HPA (%s).", offlineHPAName)
 	return nil
