@@ -95,14 +95,9 @@ func kubeCtlHPAClient() autoscalingv1.AutoscalingV1Interface {
 }
 
 func buildHelmClient() *helm.Client {
-	log.Println("Setting up tiller tunnel..")
-	tillerHost, err := kubectl.SetupTillerTunnel()
-	runtime.PanicIfError(err)
-	log.Println("Established tiller tunnel")
-	helmClient := helm.NewClient(helm.Host(tillerHost), helm.ConnectTimeout(60))
-	log.Printf("Configured helm client, pinging tiller at: %s..", Green(tillerHost))
-	err = helmClient.PingTiller()
-	runtime.PanicIfError(err)
+	log.Println("Building helm client..")
+	helmClient := helm.NewClient(helm.ConnectTimeout(60))
+	log.Printf("Configured helm client.")
 	return helmClient
 }
 
