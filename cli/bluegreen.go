@@ -59,17 +59,17 @@ func RunBlueGreenDeploy() error {
 	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
 	log.Println("Successfully loaded chart values")
 
-	log.Println("Connecting helm client..")
-	helmClient := buildHelmClient()
-	log.Println("Successfully connected helm client!")
+	log.Println("Configuring helm...")
+	helmConfig := buildHelmConfig() //
+	log.Println("Successfully configured helm!")
 
-	deploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME])
+	deploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME]) //
 	log.Printf("Preparing to deploy %s..", Green(deploymentName))
 	deployedRelease := releaseWithValues(
 		deploymentName,
 		chartValuesYaml,
 		deployment.ChartValuesForDeployment(deployColour, cliFlags[APP_VERSION]),
-		helmClient,
+		helmConfig,
 		cliFlags[CHART_DIR])
 
 	log.Println("Now updating the online deployment replica set to a minimum of 1.")
@@ -87,7 +87,7 @@ func RunBlueGreenDeploy() error {
 		serviceDeploymentName,
 		chartValuesYaml,
 		deployment.ChartValuesForServiceRelease(deployColour),
-		helmClient,
+		helmConfig,
 		cliFlags[CHART_DIR])
 	log.Printf("Successfully deployed %s, the service is now live!", Green(serviceDeploymentName))
 	PrintRelease(deployedServiceRelease)
