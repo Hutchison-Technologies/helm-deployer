@@ -101,7 +101,15 @@ func kubeCtlHPAClient() autoscalingv1.AutoscalingV1Interface {
 
 func buildHelmConfiguration() *action.Configuration {
     log.Println("Building helm configuration..")
+
 	helmConfig := new(action.Configuration) 
+	settings := cli.New()
+	if err := actionConfig.Init(settings.RESTClientGetter(), "default",
+		os.Getenv("HELM_DRIVER"), log.Printf); err != nil {
+		log.Printf("%+v", err)
+		os.Exit(1)
+	}
+
 	log.Printf("Configured helm configuration.")
     return helmConfig
 }
@@ -129,7 +137,7 @@ func releaseWithValues(releaseName string, chartValuesYaml *yaml.Yaml, chartValu
 	}
 }
 
-// (())
+
 func deployRelease(helmConfig *action.Configuration, releaseName, chartDir string, chartValues []byte) (*release.Release, error) {
 	log.Printf("Checking for existing %s release..", Green(releaseName))
 
@@ -154,14 +162,23 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
 	case deployment.ReleaseCourse.INSTALL:
 		log.Println("No existing release found, installing release..")
-		installResponse, err := 
 		
-		//helmClient.InstallRelease(chartDir, "default", helm.ReleaseName(releaseName), helm.InstallWait(true), helm.InstallTimeout(300), helm.InstallDescription("Some chart"), helm.ValueOverrides(chartValues))
-		
+		chart, err := loader.Load(chartDir)
+		if err != nil {
+			panic(err)
+		}
+
 		installManager := action.NewInstall(actionConfig)
-		
 		installManager.Namespace = releaseNamespace
 		installManager.ReleaseName = releaseName
+		installManager.Wait = true
+		installManager.Timeout = helm.InstallTimeout(300)
+		installManager.Description = "Some chart"
+		// Disable when not testing...
+		installManager.DryRun = true
+
+		installResponse, err := installManager.Run(chart)
+
 		
 		if err != nil {
 			return nil, err
@@ -198,15 +215,20 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 }
 
 func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir string, chartValues []byte, opts ...helm.UpdateOption) (*services.UpdateReleaseResponse, error) {
-	opts = append(opts, helm.UpgradeForce(true), helm.UpgradeRecreate(true), helm.UpgradeWait(true), helm.UpgradeTimeout(300), helm.UpdateValueOverrides(chartValues))
-
 	chart, err := loader.Load(chartDir)
     if err != nil {
         panic(err)
     }
 
 	upgradeManager := action.NewUpgrade(helmConfig)
-	res, err := upgradeManager.Run(releaseName, chart, opts)
+	upgradeManager.Force = true;
+	upgradeManager.Recreate = true;
+	upgradeManager.Wait = true;
+	upgradeManager.Timeout = helm.UpgradeTimeout(300)
+	// Remove when finished testing
+	upgradeManager.DryRun = true
+
+	res, err := upgradeManager.Run(releaseName, chart)
 
 	if err != nil {
 		return nil, err
@@ -227,6 +249,8 @@ func rollback(helmConfig *action.Configuration, releaseName string) error {
 	log.Printf("Gathering up to the last %d release(s)..", ROLLBACK_VERSION_POOL)
 
 	status := action.NewHistory(helmConfig)
+	status.Max = ROLLBACK_VERSION_POOL
+
 	releaseHistory, err := status.Run(releaseName)
 
 	runtime.PanicIfError(err)
@@ -250,6 +274,12 @@ func rollback(helmConfig *action.Configuration, releaseName string) error {
 	log.Println("Rolling back..")
 
 	rollbackManager := action.NewRollback(helmConfig)
+	rollbackManager.Force = true;
+	rollbackManager.Recreate = true;
+	rollbackManager.Wait = true;
+	rollbackManager.Timeout = helm.RollbackTimeout(ROLLBACK_TIMEOUT)
+	rollbackManager.Version = latestSuccessfulRelease.Version;
+
 	err := status.Run(releaseName)
 
 	if err != nil {
