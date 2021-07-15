@@ -1,12 +1,12 @@
-FROM golang:1.12.4-alpine3.9 as base
+FROM golang:1.16.6-alpine3.14 as base
 
-ENV GO111MODULE=off
-RUN apk add --update git curl gcc build-base
+RUN apk add --update git curl gcc build-base bash
 RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 WORKDIR ${GOPATH}/src/github.com/Hutchison-Technologies/helm-deployer
 
+ENV GO111MODULE=on
 COPY . ./
-RUN dep ensure
+RUN go mod download
 
 FROM base as test
 ENTRYPOINT [ "go" ]

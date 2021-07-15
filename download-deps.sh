@@ -54,6 +54,7 @@ go get k8s.io/client-go/kubernetes/typed/core/v1@v0.21.0
 go get k8s.io/client-go/plugin/pkg/client/auth/gcp@v0.21.0
 go get k8s.io/client-go/rest@v0.21.0
 go get k8s.io/client-go/tools/clientcmd@v0.21.0
+
 # even more helm and k8s dependencies
 go get github.com/databus23/helm-diff/diff
 go get github.com/databus23/helm-diff/manifest
