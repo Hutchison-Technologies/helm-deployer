@@ -40,9 +40,9 @@ func RunStandardChartDeploy() error {
 	chartValuesYaml := loadChartValues(cliFlags[CHART_DIR], cliFlags[TARGET_ENV])
 	log.Println("Successfully loaded chart values")
 
-	log.Println("Connecting helm client..")
-	helmClient := buildHelmClient()
-	log.Println("Successfully connected helm client!")
+	log.Println("Connecting helm config..")
+	helmConfig := buildHelmConfig()
+	log.Println("Successfully configured helm!")
 
 	deploymentName := deployment.StandardChartDeploymentName(cliFlags[TARGET_ENV], cliFlags[APP_NAME])
 	log.Printf("Preparing to deploy %s..", Green(deploymentName))
@@ -50,7 +50,7 @@ func RunStandardChartDeploy() error {
 		deploymentName,
 		chartValuesYaml,
 		[][]interface{}{},
-		helmClient,
+		helmConfig,
 		cliFlags[CHART_DIR])
 	log.Printf("Successfully deployed %s, the service is now live!", Green(deploymentName))
 	PrintRelease(deployedRelease)

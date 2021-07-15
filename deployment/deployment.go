@@ -34,10 +34,10 @@ func GetOfflineService(kubeClient v1.CoreV1Interface, targetEnv, appName string)
 	return service, nil
 }
 
-func DetermineReleaseCourse(releaseName string, statusCode release.Status_Code, err error) int {
+func DetermineReleaseCourse(releaseName string, statusCode release.Status, err error) int {
 	if err != nil && strings.Contains(err.Error(), storageerrors.ErrReleaseNotFound(releaseName).Error()) {
 		return ReleaseCourse.INSTALL
-	} else if statusCode == release.Status_DELETED {
+	} else if statusCode == "uninstalled" {
 		return ReleaseCourse.UPGRADE
 	} else {
 		return ReleaseCourse.UPGRADE_WITH_DIFF_CHECK

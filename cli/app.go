@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -14,8 +15,9 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/h3lm"
 	"github.com/Hutchison-Technologies/helm-deployer/kubectl"
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
-	"github.com/databus23/helm-diff/diff"
-	"github.com/databus23/helm-diff/manifest"
+
+	// "github.com/databus23/helm-diff/diff"
+	// "github.com/databus23/helm-diff/manifest"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -27,7 +29,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
-	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 )
 
@@ -98,12 +99,12 @@ func kubeCtlHPAClient() autoscalingv1.AutoscalingV1Interface {
 	return client
 }
 
-func buildHelmConfiguration() *action.Configuration {
+func buildHelmConfig() *action.Configuration {
     log.Println("Building helm configuration..")
 
 	helmConfig := new(action.Configuration) 
 	settings := cli.New()
-	if err := actionConfig.Init(settings.RESTClientGetter(), "default",
+	if err := helmConfig.Init(settings.RESTClientGetter(), "default",
 		os.Getenv("HELM_DRIVER"), log.Printf); err != nil {
 		log.Printf("%+v", err)
 		os.Exit(1)
@@ -141,21 +142,16 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	log.Printf("Checking for existing %s release..", Green(releaseName))
 
 	releaseNamespace := "default"
-	if err := helmConfig.Init(kube.GetConfig(kubeconfigPath, "", releaseNamespace), releaseNamespace, os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
-        fmt.Sprintf(format, v)
-    }); err != nil {
-        panic(err)
-    }
 
 	// Create new fetchManager to get information about existing releases
 	fetchManager := action.NewGet(helmConfig)
 	releaseContent, err := fetchManager.Run(releaseName)
-	existingReleaseCode := release.Status_UNKNOWN
+	existingReleaseCode := release.StatusUnknown
 
 	if releaseContent != nil {
 		log.Println("Found existing release:")
-		PrintRelease(releaseContent.Release)
-		existingReleaseCode = releaseContent.Release.Info.Status.Code
+		PrintRelease(releaseContent)
+		existingReleaseCode = releaseContent.Info.Status
 	}
 
 	switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
@@ -172,7 +168,7 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 			panic(err)
 		}
 
-		installManager := action.NewInstall(actionConfig)
+		installManager := action.NewInstall(helmConfig)
 		installManager.Namespace = releaseNamespace
 		installManager.ReleaseName = releaseName
 		installManager.Wait = true
@@ -181,31 +177,39 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		// Disable when not testing...
 		installManager.DryRun = true
 
-		installResponse, err := installManager.Run(chart)
+		vals := map[string]interface{}{
+			"something": map[string]interface{}{
+				"somethingAgain": map[string]interface{}{
+					"somethingAgainAgain": "test",
+				},
+			},
+		}
+
+		installResponse, err := installManager.Run(chart, vals)
 
 		
 		if err != nil {
 			return nil, err
 		}
-		return installResponse.Release, nil
+		return installResponse, nil
 
 	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
 		log.Println("Dry-running release to obtain full manifest..")
 
-		dryRunResponse, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
-		if err != nil {
-			return nil, err
-		}
+		// dryRunResponse, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
+		// if err != nil {
+		// 	return nil, err
+		// }
 
-		currentManifests := manifest.ParseRelease(releaseContent.Release)
-		newManifests := manifest.ParseRelease(dryRunResponse.Release)
+		// currentManifests := manifest.ParseRelease(releaseContent, false)
+		// newManifests := manifest.ParseRelease(dryRunResponse, false)
 
-		log.Println("Checking proposed release for changes against existing release..")
-		hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stdout)
-		if !hasChanges {
-			return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
-		}
-		fallthrough
+		// log.Println("Checking proposed release for changes against existing release..")
+		// hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stdout)
+		// if !hasChanges {
+		// 	return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
+		// }
+		// fallthrough
 	case deployment.ReleaseCourse.UPGRADE:
 		log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
 		upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
@@ -237,7 +241,15 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
 	// Remove when finished testing
 	upgradeManager.DryRun = true // dryRun
 
-	res, err := upgradeManager.Run(releaseName, chart)
+	vals := map[string]interface{}{
+		"something": map[string]interface{}{
+			"somethingAgain": map[string]interface{}{
+				"somethingAgainAgain": "test",
+			},
+		},
+	}
+
+	res, err := upgradeManager.Run(releaseName, chart, vals)
 
 	if err != nil {
 		return nil, err
@@ -246,11 +258,11 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
 }
 
 
-func shouldRollBack(helmConfig *action.Configuration, string) bool {
+func shouldRollBack(helmConfig *action.Configuration, releaseName string) bool {
 	status := action.NewStatus(helmConfig)
 	releaseStatus, err := status.Run(releaseName)
 	runtime.PanicIfError(err)
-	return releaseStatus.Info.Status.Code != release.Status_DEPLOYED
+	return releaseStatus.Info.Status != release.StatusDeployed
 }
 
 
@@ -268,7 +280,7 @@ func rollback(helmConfig *action.Configuration, releaseName string) error {
 	}
 
 	log.Printf("Found %d prior release(s), filtering for successful release(s)..", len(releaseHistory))
-	successfullyDeployedReleases := h3lm.FilterReleasesByStatusCode(releaseHistory, release.Status_DEPLOYED)
+	successfullyDeployedReleases := h3lm.FilterReleasesByStatusCode(releaseHistory, release.StatusDeployed)
 
 	if len(successfullyDeployedReleases) == 0 {
 		return errors.New("No successfully deployed prior release(s) to roll back to!")
@@ -294,7 +306,7 @@ func rollback(helmConfig *action.Configuration, releaseName string) error {
 	rollbackManager.Timeout = duration
 	rollbackManager.Version = latestSuccessfulRelease.Version;
 
-	err := status.Run(releaseName)
+	err = rollbackManager.Run(releaseName)
 
 	if err != nil {
 		return fmt.Errorf("Failed to rollback: %s", err)
@@ -306,7 +318,7 @@ func rollback(helmConfig *action.Configuration, releaseName string) error {
 func deleteHPA(offlineHPAName string) error {
 	hpaClient := kubeCtlHPAClient().HorizontalPodAutoscalers(apiv1.NamespaceDefault)
 	deletePolicy := metav1.DeletePropagationBackground
-	deletionError := hpaClient.Delete(offlineHPAName, &metav1.DeleteOptions{
+	deletionError := hpaClient.Delete(context.TODO(), offlineHPAName, metav1.DeleteOptions{
 		PropagationPolicy: &deletePolicy,
 	})
 	if deletionError != nil {
@@ -322,7 +334,7 @@ func scaleReplicaSet(offlineDeploymentName string, scaleSize int32) error {
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		// Retrieve the latest version of Deployment before attempting update
 		// RetryOnConflict uses exponential backoff to avoid exhausting the apiserver
-		result, getErr := deploymentsClient.Get(offlineDeploymentName, metav1.GetOptions{})
+		result, getErr := deploymentsClient.Get(context.TODO(), offlineDeploymentName, metav1.GetOptions{})
 		if getErr != nil {
 			panic(fmt.Errorf("Failed to get latest version of Deployment: %v", getErr))
 		}
@@ -330,7 +342,7 @@ func scaleReplicaSet(offlineDeploymentName string, scaleSize int32) error {
 		var numberOfReplicas int32 = scaleSize
 		result.Spec.Replicas = &numberOfReplicas
 
-		_, updateErr := deploymentsClient.Update(result)
+		_, updateErr := deploymentsClient.Update(context.TODO(), result, metav1.UpdateOptions{})
 		return updateErr
 	})
 

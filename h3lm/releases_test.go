@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func makeReleaseWithCode(code release.Status_Code) *release.Release {
+func makeReleaseWithCode(code release.Status) *release.Release {
 	return &release.Release{
 		Info: &release.Info{
 			Status: &release.Status{

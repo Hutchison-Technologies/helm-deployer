@@ -60,7 +60,7 @@ func RunBlueGreenDeploy() error {
 	log.Println("Successfully loaded chart values")
 
 	log.Println("Configuring helm...")
-	helmConfig := buildHelmConfig() //
+	helmConfig := buildHelmConfig()
 	log.Println("Successfully configured helm!")
 
 	deploymentName := deployment.BlueGreenDeploymentName(cliFlags[TARGET_ENV], deployColour, cliFlags[APP_NAME]) //

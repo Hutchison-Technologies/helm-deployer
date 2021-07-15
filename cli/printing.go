@@ -5,7 +5,6 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"log"
 	"strconv"
-	"time"
 )
 
 func PrintMap(m map[string]string) {
@@ -16,7 +15,7 @@ func PrintMap(m map[string]string) {
 
 func PrintRelease(rel *release.Release) {
 	log.Printf("\n\tName: %s\n\tRevision: %s\n\tStatus: %s\n\tLast Deployed: %s",
-		Green(rel.Name), Green(strconv.FormatInt(int64(rel.Version), 10)), Green(rel.Info.Status.Code.String()), Green(time.Unix(rel.Info.LastDeployed.Seconds, int64(rel.Info.LastDeployed.Nanos)).String()))
+		Green(rel.Name), Green(strconv.FormatInt(int64(rel.Version), 10)), Green(rel.Info.Status.String()), Green(rel.Info.LastDeployed.Local().String()))
 }
 
 func Green(str string) string {

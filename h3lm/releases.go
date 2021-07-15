@@ -13,7 +13,7 @@ func LatestRelease(releases []*release.Release) *release.Release {
 	tmp := make([]*release.Release, len(releases))
 	copy(tmp, releases)
 	sort.Slice(tmp, func(i, j int) bool {
-		return tmp[i].Info.LastDeployed.Seconds > tmp[j].Info.LastDeployed.Seconds
+		return tmp[j].Info.LastDeployed.Before(tmp[i].Info.LastDeployed) 
 	})
 
 	return tmp[0]
