@@ -10,6 +10,7 @@ import (
 	"time"
 	"bufio"
 	"bytes"
+	"encoding/json"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -180,16 +181,16 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		// Disable when not testing...
 		installManager.DryRun = true
 
-		vals := map[string]interface{}{
-			"something": map[string]interface{}{
-				"somethingAgain": map[string]interface{}{
-					"somethingAgainAgain": "test",
-				},
-			},
+
+		// Convert JSON map into map
+		vals := make(map[string]interface{})
+		err = json.Unmarshal(chartValues, &vals)
+		if err != nil {
+			panic(err)
 		}
 
+		// Push values to chart and install
 		installResponse, err := installManager.Run(chart, vals)
-
 		
 		if err != nil {
 			return nil, err
@@ -213,10 +214,9 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		log.Println("Checking proposed release for changes against existing release..")
 		
 		var b bytes.Buffer
-		writer := bufio.NewWriter(&b)
 		var manifestContext int = -1
 
-		hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, writer)
+		hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, bufio.NewWriter(&b))
 		if !hasChanges {
 			return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
 		}
@@ -252,14 +252,14 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
 	// Remove when finished testing
 	upgradeManager.DryRun = true // dryRun
 
-	vals := map[string]interface{}{
-		"something": map[string]interface{}{
-			"somethingAgain": map[string]interface{}{
-				"somethingAgainAgain": "test",
-			},
-		},
+	// Convert JSON map into map
+	vals := make(map[string]interface{})
+	err = json.Unmarshal(chartValues, &vals)
+	if err != nil {
+		panic(err)
 	}
 
+	// Push values to upgrade request
 	res, err := upgradeManager.Run(releaseName, chart, vals)
 
 	if err != nil {
