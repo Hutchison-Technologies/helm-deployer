@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	"bufio"
+	"bytes"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -16,8 +18,9 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/kubectl"
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 
-	// "github.com/databus23/helm-diff/diff"
-	// "github.com/databus23/helm-diff/manifest"
+	"github.com/databus23/helm-diff/diff"
+	"github.com/databus23/helm-diff/manifest"
+
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -196,20 +199,28 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
 		log.Println("Dry-running release to obtain full manifest..")
 
-		// dryRunResponse, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
-		// if err != nil {
-		// 	return nil, err
-		// }
+		dryRunRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
+		if err != nil {
+			return nil, err
+		}
 
-		// currentManifests := manifest.ParseRelease(releaseContent, false)
-		// newManifests := manifest.ParseRelease(dryRunResponse, false)
+		currentManifestString := string(releaseContent.Manifest)
+		newManifestString := string(dryRunRelease.Manifest)
 
-		// log.Println("Checking proposed release for changes against existing release..")
-		// hasChanges := diff.DiffManifests(currentManifests, newManifests, []string{}, -1, os.Stdout)
-		// if !hasChanges {
-		// 	return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
-		// }
-		// fallthrough
+		currentManifests := manifest.Parse(currentManifestString, "default")
+		newManifests := manifest.Parse(newManifestString, "default")
+
+		log.Println("Checking proposed release for changes against existing release..")
+		
+		var b bytes.Buffer
+		writer := bufio.NewWriter(&b)
+		var manifestContext int = -1
+
+		hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, writer)
+		if !hasChanges {
+			return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
+		}
+		fallthrough
 	case deployment.ReleaseCourse.UPGRADE:
 		log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
 		upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
