@@ -2,7 +2,7 @@ package deployment
 
 import (
 	"github.com/stretchr/testify/assert"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	"helm.sh/helm/v3/pkg/release"
 	storageerrors "k8s.io/helm/pkg/storage/errors"
 	"testing"
 )

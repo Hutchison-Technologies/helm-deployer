@@ -32,6 +32,8 @@ Enter the root of the project and install the dependencies using [dep](https://g
 
     $ cd helm-deployer && dep ensure
 
+'dep ensure' is crap, use go mod with the download-deps.sh script attached.
+
 ### Building
 
 To build the binary, run:

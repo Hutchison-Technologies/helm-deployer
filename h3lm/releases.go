@@ -1,7 +1,7 @@
 package h3lm
 
 import (
-	"k8s.io/helm/pkg/proto/hapi/release"
+	"helm.sh/helm/v3/pkg/release"
 	"sort"
 )
 
@@ -19,10 +19,10 @@ func LatestRelease(releases []*release.Release) *release.Release {
 	return tmp[0]
 }
 
-func FilterReleasesByStatusCode(releases []*release.Release, code release.Status_Code) []*release.Release {
+func FilterReleasesByStatusCode(releases []*release.Release, code release.Status) []*release.Release {
 	filtered := make([]*release.Release, 0)
 	for _, oldRelease := range releases {
-		if oldRelease.Info.Status.Code == code {
+		if oldRelease.Info.Status == code {
 			filtered = append(filtered, oldRelease)
 		}
 	}

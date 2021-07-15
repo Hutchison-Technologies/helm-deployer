@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -22,14 +23,12 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/helm/pkg/helm"
-	"k8s.io/helm/pkg/proto/hapi/release"
-	"k8s.io/helm/pkg/proto/hapi/services"
 
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v3/pkg/release"
 )
 
 const (
@@ -168,11 +167,16 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 			panic(err)
 		}
 
+		duration, err := time.ParseDuration("300s")
+		if err != nil {
+			panic(err)
+		}
+
 		installManager := action.NewInstall(actionConfig)
 		installManager.Namespace = releaseNamespace
 		installManager.ReleaseName = releaseName
 		installManager.Wait = true
-		installManager.Timeout = helm.InstallTimeout(300)
+		installManager.Timeout = duration
 		installManager.Description = "Some chart"
 		// Disable when not testing...
 		installManager.DryRun = true
@@ -188,7 +192,7 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
 		log.Println("Dry-running release to obtain full manifest..")
 
-		dryRunResponse, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, helm.UpgradeDryRun(true))
+		dryRunResponse, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
 		if err != nil {
 			return nil, err
 		}
@@ -204,29 +208,34 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		fallthrough
 	case deployment.ReleaseCourse.UPGRADE:
 		log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
-		upgradeResponse, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues)
+		upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
 		if err != nil {
 			return nil, err
 		}
-		return upgradeResponse.Release, nil
+		return upgradeRelease, nil
 	}
 
 	return nil, errors.New("Unknown release course")
 }
 
-func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir string, chartValues []byte, opts ...helm.UpdateOption) (*services.UpdateReleaseResponse, error) {
+func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir string, chartValues []byte, dryRun bool) (*release.Release, error) {
 	chart, err := loader.Load(chartDir)
     if err != nil {
         panic(err)
     }
 
+	duration, err := time.ParseDuration("300s")
+	if err != nil {
+		panic(err)
+	}
+
 	upgradeManager := action.NewUpgrade(helmConfig)
 	upgradeManager.Force = true;
 	upgradeManager.Recreate = true;
 	upgradeManager.Wait = true;
-	upgradeManager.Timeout = helm.UpgradeTimeout(300)
+	upgradeManager.Timeout = duration
 	// Remove when finished testing
-	upgradeManager.DryRun = true
+	upgradeManager.DryRun = true // dryRun
 
 	res, err := upgradeManager.Run(releaseName, chart)
 
@@ -273,11 +282,16 @@ func rollback(helmConfig *action.Configuration, releaseName string) error {
 
 	log.Println("Rolling back..")
 
+	duration, err := time.ParseDuration(fmt.Sprintf("%ds", ROLLBACK_TIMEOUT))
+	if err != nil {
+		panic(err)
+	}
+
 	rollbackManager := action.NewRollback(helmConfig)
 	rollbackManager.Force = true;
 	rollbackManager.Recreate = true;
 	rollbackManager.Wait = true;
-	rollbackManager.Timeout = helm.RollbackTimeout(ROLLBACK_TIMEOUT)
+	rollbackManager.Timeout = duration
 	rollbackManager.Version = latestSuccessfulRelease.Version;
 
 	err := status.Run(releaseName)

@@ -10,7 +10,6 @@ import (
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/client-go/rest"
-	"k8s.io/helm/pkg/helm/portforwarder"
 )
 
 //Client is used for core kube actions
@@ -38,20 +37,6 @@ func HPAClient() (autoscalingv1.AutoscalingV1Interface, error) {
 		return nil, err
 	}
 	return client.AutoscalingV1(), nil
-}
-
-func SetupTillerTunnel() (string, error) {
-	config, client, err := getKubeClient()
-	if err != nil {
-		return "", err
-	}
-
-	tillerTunnel, err := portforwarder.New("kube-system", client, config)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("127.0.0.1:%d", tillerTunnel.Local), nil
 }
 
 func getKubeClient() (*rest.Config, kubernetes.Interface, error) {

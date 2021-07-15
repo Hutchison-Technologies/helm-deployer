@@ -2,7 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	"helm.sh/helm/v3/pkg/release"
 	"log"
 	"strconv"
 	"time"

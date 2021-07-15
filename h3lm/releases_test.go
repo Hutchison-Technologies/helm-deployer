@@ -3,7 +3,7 @@ package h3lm
 import (
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/helm/pkg/proto/hapi/release"
+	"helm.sh/helm/v3/pkg/release"
 	"testing"
 )
 
