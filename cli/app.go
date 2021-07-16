@@ -8,9 +8,9 @@ import (
 	"os"
 	"strings"
 	"time"
-	"bufio"
-	"bytes"
-	goYaml "gopkg.in/yaml.v1"
+	// "bufio"
+	// "bytes"
+	// goYaml "gopkg.in/yaml.v1"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -19,8 +19,8 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/kubectl"
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 
-	"github.com/databus23/helm-diff/diff"
-	"github.com/databus23/helm-diff/manifest"
+	// "github.com/databus23/helm-diff/diff"
+	// "github.com/databus23/helm-diff/manifest"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +34,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
+	// "helm.sh/helm/v3/pkg/kube"
 )
 
 const (
@@ -108,6 +109,12 @@ func buildHelmConfig() *action.Configuration {
 
 	helmConfig := new(action.Configuration) 
 	settings := cli.New()
+	// if err := helmConfig.Init(kube.GetConfig("/tmp/my-kubeconfig", "", "default"), "default", os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
+    //     fmt.Sprintf(format, v)
+    // }); err != nil {
+    //     panic(err)
+    // }
+
 	if err := helmConfig.Init(settings.RESTClientGetter(), "default",
 		os.Getenv("HELM_DRIVER"), log.Printf); err != nil {
 		log.Printf("%+v", err)
@@ -150,16 +157,16 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	// Create new fetchManager to get information about existing releases
 	fetchManager := action.NewGet(helmConfig)
 	releaseContent, err := fetchManager.Run(releaseName)
-	existingReleaseCode := release.StatusUnknown
+	//existingReleaseCode := release.StatusUnknown
 
 	if releaseContent != nil {
 		log.Println("Found existing release:")
 		PrintRelease(releaseContent)
-		existingReleaseCode = releaseContent.Info.Status
+		//existingReleaseCode = releaseContent.Info.Status
 	}
 
-	switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
-	case deployment.ReleaseCourse.INSTALL:
+	// switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
+	// case deployment.ReleaseCourse.INSTALL:
 		log.Println("No existing release found, installing release..")
 		
 		chart, err := loader.Load(chartDir)
@@ -176,17 +183,59 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		installManager.Namespace = releaseNamespace
 		installManager.ReleaseName = releaseName
 		installManager.Wait = true
+		installManager.WaitForJobs = true
 		installManager.Timeout = duration
 		installManager.Description = "Some chart"
 		// Disable when not testing...
-		installManager.DryRun = true
+		installManager.DryRun = false
+		installManager.Replace = true
 
 
 		// Convert JSON map into map
-		vals := make(map[string]interface{})
-		err = goYaml.Unmarshal(chartValues, &vals)
-		if err != nil {
-			panic(err)
+		// vals := make(map[string]interface{})
+		// err = goYaml.Unmarshal(chartValues, &vals)
+		// if err != nil {
+		// 	panic(err)
+		// }
+
+		// log.Println("Chart values: ", vals)
+
+		vals := map[string]interface{}{
+			"bluegreen": map[string]interface{}{
+				"deployment": map[string]interface{}{
+					"colour": "blue",
+					"healthcheckport": 4000,
+					"image": "eu.gcr.io/ht-manufacturing-6996cdf0/manufacturing-holidays-api",
+					"live_probe_path": "/",
+					"port": 4000,
+					"replicas": 1,
+					"resources": map[string]interface{}{
+						"limits": map[string]interface{}{
+							"cpu": "20m",
+							"memory": "85Mi",
+						},
+						"requests": map[string]interface{}{
+							"cpu": "15m",
+							"memory": "85Mi",
+						},
+					},
+					"tolerations": map[string]interface{}{
+						"environment": "prod",
+      					"performance": "low",
+					},
+				},
+				"is_service_release": true,
+				"labels": map[string]interface{}{
+					"app": "manufacturing-holidays-api",
+					"env": "prod",
+					"tier": "web",
+				},
+				"service": map[string]interface{}{
+					"selector": map[string]interface{}{
+						"colour": "blue",
+					},
+				},
+			},
 		}
 
 		// Push values to chart and install
@@ -195,40 +244,41 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		if err != nil {
 			return nil, err
 		}
+
 		return installResponse, nil
 
-	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
-		log.Println("Dry-running release to obtain full manifest..")
+	// case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
+	// 	log.Println("Dry-running release to obtain full manifest..")
 
-		dryRunRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
-		if err != nil {
-			return nil, err
-		}
+	// 	dryRunRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		currentManifestString := string(releaseContent.Manifest)
-		newManifestString := string(dryRunRelease.Manifest)
+	// 	currentManifestString := string(releaseContent.Manifest)
+	// 	newManifestString := string(dryRunRelease.Manifest)
 
-		currentManifests := manifest.Parse(currentManifestString, "default")
-		newManifests := manifest.Parse(newManifestString, "default")
+	// 	currentManifests := manifest.Parse(currentManifestString, "default")
+	// 	newManifests := manifest.Parse(newManifestString, "default")
 
-		log.Println("Checking proposed release for changes against existing release..")
+	// 	log.Println("Checking proposed release for changes against existing release..")
 		
-		var b bytes.Buffer
-		var manifestContext int = -1
+	// 	var b bytes.Buffer
+	// 	var manifestContext int = -1
 
-		hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, bufio.NewWriter(&b))
-		if !hasChanges {
-			return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
-		}
-		fallthrough
-	case deployment.ReleaseCourse.UPGRADE:
-		log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
-		upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
-		if err != nil {
-			return nil, err
-		}
-		return upgradeRelease, nil
-	}
+	// 	hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, bufio.NewWriter(&b))
+	// 	if !hasChanges {
+	// 		return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
+	// 	}
+	// 	fallthrough
+	// case deployment.ReleaseCourse.UPGRADE:
+		// log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
+		// upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// return upgradeRelease, nil
+	// }
 
 	return nil, errors.New("Unknown release course")
 }
@@ -250,13 +300,51 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
 	upgradeManager.Wait = true;
 	upgradeManager.Timeout = duration
 	// Remove when finished testing
-	upgradeManager.DryRun = true // dryRun
+	upgradeManager.DryRun = dryRun
 
 	// Convert JSON map into map
-	vals := make(map[string]interface{})
-	err = goYaml.Unmarshal(chartValues, &vals)
-	if err != nil {
-		panic(err) // <- this is where everything breaks
+	// vals := make(map[string]interface{})
+	// err = goYaml.Unmarshal(chartValues, &vals)
+	// if err != nil {
+	// 	panic(err) // <- this is where everything breaks
+	// }
+
+	vals := map[string]interface{}{
+		"bluegreen": map[string]interface{}{
+			"deployment": map[string]interface{}{
+				"colour": "green",
+				"healthcheckport": 4000,
+				"image": "eu.gcr.io/ht-manufacturing-6996cdf0/manufacturing-holidays-api",
+				"live_probe_path": "/",
+				"port": 4000,
+				"replicas": 1,
+				"resources": map[string]interface{}{
+					"limits": map[string]interface{}{
+						"cpu": "20m",
+						"memory": "85Mi",
+					},
+					"requests": map[string]interface{}{
+						"cpu": "15m",
+						"memory": "85Mi",
+					},
+				},
+				"tolerations": map[string]interface{}{
+					"environment": "prod",
+					"performance": "low",
+				},
+			},
+			"is_service_release": true,
+			"labels": map[string]interface{}{
+				"app": "manufacturing-holidays-api",
+				"env": "prod",
+				"tier": "web",
+			},
+			"service": map[string]interface{}{
+				"selector": map[string]interface{}{
+					"colour": "green",
+				},
+			},
+		},
 	}
 
 	// Push values to upgrade request

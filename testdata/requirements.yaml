@@ -1,8 +1,8 @@
 dependencies:
-  - name: unaliased-dep
+  - name: blue-green-microservice
     version: ">=0.0.0"
-    repository: https://madeup.chart.museum.com
-  - name: aliased-dep
+    repository: https://chartmuseum.rnd.hutchison-rnd.co.uk
+    alias: bluegreen
+  - name: microservice
     version: ">=0.0.0"
-    repository: https://madeup.chart.museum.com
-    alias: aliaseddep
+    repository: https://chartmuseum.rnd.hutchison-rnd.co.uk

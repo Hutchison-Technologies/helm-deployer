@@ -1,23 +1,30 @@
-# this is some kind of comment
 bluegreen:
+  deployment:
+    colour: blue
+    healthcheckport: 4000
+    image: eu.gcr.io/ht-manufacturing-6996cdf0/manufacturing-holidays-api
+    live_probe_path: /
+    port: 4000
+    replicas: 1
+    resources:
+      limits:
+        cpu: 20m
+        memory: 85Mi
+      requests:
+        cpu: 15m
+        memory: 85Mi
+    tolerations:
+      environment: prod
+      performance: low
+    version: v0.0.87
   is_service_release: false
-
+  labels:
+    app: manufacturing-holidays-api
+    env: prod
+    tier: web
   service:
     selector:
       colour: blue
-
+microservice:
   deployment:
-    image: eu.gcr.io/in-home-displays-4f5adbfd/ihdl-gateway-api
-    version: 0.0.9
-    colour: blue
-    port: 8080
-    live_probe_path: /
-    pull_policy: Always
-    replicas: 1
-
-  labels:
-    app: ihdl-gateway-api
-    tier: web
-    env: prod
----
-
+    version: v0.0.88
