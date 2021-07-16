@@ -10,7 +10,7 @@ import (
 	"time"
 	"bufio"
 	"bytes"
-	"encoding/json"
+	goYaml "gopkg.in/yaml.v1"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -184,7 +184,7 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 
 		// Convert JSON map into map
 		vals := make(map[string]interface{})
-		err = json.Unmarshal(chartValues, &vals)
+		err = goYaml.Unmarshal(chartValues, &vals)
 		if err != nil {
 			panic(err)
 		}
@@ -254,9 +254,9 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
 
 	// Convert JSON map into map
 	vals := make(map[string]interface{})
-	err = json.Unmarshal(chartValues, &vals)
+	err = goYaml.Unmarshal(chartValues, &vals)
 	if err != nil {
-		panic(err)
+		panic(err) // <- this is where everything breaks
 	}
 
 	// Push values to upgrade request
