@@ -65,6 +65,7 @@ require (
 	helm.sh/helm/v3 v3.6.3 // indirect
 	k8s.io/api v0.21.0 // indirect
 	k8s.io/apimachinery v0.21.0 // indirect
+	k8s.io/cli-runtime v0.21.0 // indirect
 	k8s.io/client-go v0.21.0 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
 	k8s.io/kubernetes v1.21.0 // indirect
