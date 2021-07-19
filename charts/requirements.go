@@ -5,17 +5,17 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/gosexy/yaml"
 )
 
-func HasDependency(requirementsYamlPath, depName, depAlias string) bool {
-	if !filesystem.IsFile(requirementsYamlPath) {
+func HasDependency(chartYamlPath, depName, depAlias string) bool {
+	if !filesystem.IsFile(chartYamlPath) {
 		return false
 	}
 
-	requirements, err := yaml.Open(requirementsYamlPath)
+	chart, err := yaml.Open(chartYamlPath)
 	if err != nil {
 		return false
 	}
 
-	deps := requirements.Get("dependencies").([]interface{})
+	deps := chart.Get("dependencies").([]interface{})
 	for _, dep := range deps {
 		asDep, ok := dep.(map[interface{}]interface{})
 		if !ok {

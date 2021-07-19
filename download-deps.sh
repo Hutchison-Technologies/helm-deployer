@@ -60,5 +60,6 @@ go get github.com/databus23/helm-diff/diff
 go get github.com/databus23/helm-diff/manifest
 go get gopkg.in/yaml.v1
 go get k8s.io/helm/pkg/storage/errors
+go get github.com/ghodss/yaml
 
 go mod download

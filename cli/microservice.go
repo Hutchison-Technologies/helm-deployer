@@ -73,10 +73,10 @@ func RunMicroserviceDeploy() error {
 }
 
 func assertChartIsMicroservice(chartDir string) {
-	requirementsYamlPath := charts.RequirementsYamlPath(chartDir)
-	log.Printf("Checking %s for microservice dependency..", Green(requirementsYamlPath))
-	hasDependency := charts.HasDependency(requirementsYamlPath, "microservice", "")
+	chartYamlPath := charts.ChartYamlPath(chartDir)
+	log.Printf("Checking %s for microservice dependency..", Green(chartYamlPath))
+	hasDependency := charts.HasDependency(chartYamlPath, "microservice", "")
 	if !hasDependency {
-		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency %s must be present in the %s file in order to deploy using this program.", Green("microservice"), Green(requirementsYamlPath))))
+		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency %s must be present in the %s file in order to deploy using this program.", Green("microservice"), Green(chartYamlPath))))
 	}
 }

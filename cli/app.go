@@ -8,9 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
-	// "bufio"
-	// "bytes"
-	// goYaml "gopkg.in/yaml.v1"
+	goYaml "github.com/ghodss/yaml"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
 	"github.com/Hutchison-Technologies/helm-deployer/deployment"
@@ -34,7 +32,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/release"
-	// "helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v3/pkg/kube"
 )
 
 const (
@@ -107,13 +105,9 @@ func kubeCtlHPAClient() autoscalingv1.AutoscalingV1Interface {
 func buildHelmConfig() *action.Configuration {
     log.Println("Building helm configuration..")
 
+	kube.ManagedFieldsManager = "helm"
 	helmConfig := new(action.Configuration) 
 	settings := cli.New()
-	// if err := helmConfig.Init(kube.GetConfig("/tmp/my-kubeconfig", "", "default"), "default", os.Getenv("HELM_DRIVER"), func(format string, v ...interface{}) {
-    //     fmt.Sprintf(format, v)
-    // }); err != nil {
-    //     panic(err)
-    // }
 
 	if err := helmConfig.Init(settings.RESTClientGetter(), "default",
 		os.Getenv("HELM_DRIVER"), log.Printf); err != nil {
@@ -168,11 +162,13 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	// switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
 	// case deployment.ReleaseCourse.INSTALL:
 		log.Println("No existing release found, installing release..")
+		log.Println("Chart Dir: ", chartDir)
 		
-		chart, err := loader.Load(chartDir)
+		chart, err := loader.Load(fmt.Sprintf("%v/blue-green-microservice-0.11.35.tgz",chartDir))
 		if err != nil {
 			panic(err)
 		}
+		log.Println("Chart: ", chart)
 
 		duration, err := time.ParseDuration("300s")
 		if err != nil {
@@ -191,52 +187,14 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		installManager.Replace = true
 
 
-		// Convert JSON map into map
-		// vals := make(map[string]interface{})
-		// err = goYaml.Unmarshal(chartValues, &vals)
-		// if err != nil {
-		// 	panic(err)
-		// }
-
-		// log.Println("Chart values: ", vals)
-
-		vals := map[string]interface{}{
-			"bluegreen": map[string]interface{}{
-				"deployment": map[string]interface{}{
-					"colour": "blue",
-					"healthcheckport": 4000,
-					"image": "eu.gcr.io/ht-manufacturing-6996cdf0/manufacturing-holidays-api",
-					"live_probe_path": "/",
-					"port": 4000,
-					"replicas": 1,
-					"resources": map[string]interface{}{
-						"limits": map[string]interface{}{
-							"cpu": "20m",
-							"memory": "85Mi",
-						},
-						"requests": map[string]interface{}{
-							"cpu": "15m",
-							"memory": "85Mi",
-						},
-					},
-					"tolerations": map[string]interface{}{
-						"environment": "prod",
-      					"performance": "low",
-					},
-				},
-				"is_service_release": true,
-				"labels": map[string]interface{}{
-					"app": "manufacturing-holidays-api",
-					"env": "prod",
-					"tier": "web",
-				},
-				"service": map[string]interface{}{
-					"selector": map[string]interface{}{
-						"colour": "blue",
-					},
-				},
-			},
+		vals := make(map[string]interface{})
+		err = goYaml.Unmarshal(chartValues, &vals)
+		if err != nil {
+			log.Println("HUH?")
+			panic(err)
 		}
+
+		log.Println("VALS: ", vals)
 
 		// Push values to chart and install
 		installResponse, err := installManager.Run(chart, vals)
@@ -283,6 +241,7 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	return nil, errors.New("Unknown release course")
 }
 
+
 func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir string, chartValues []byte, dryRun bool) (*release.Release, error) {
 	chart, err := loader.Load(chartDir)
     if err != nil {
@@ -302,49 +261,10 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
 	// Remove when finished testing
 	upgradeManager.DryRun = dryRun
 
-	// Convert JSON map into map
-	// vals := make(map[string]interface{})
-	// err = goYaml.Unmarshal(chartValues, &vals)
-	// if err != nil {
-	// 	panic(err) // <- this is where everything breaks
-	// }
-
-	vals := map[string]interface{}{
-		"bluegreen": map[string]interface{}{
-			"deployment": map[string]interface{}{
-				"colour": "green",
-				"healthcheckport": 4000,
-				"image": "eu.gcr.io/ht-manufacturing-6996cdf0/manufacturing-holidays-api",
-				"live_probe_path": "/",
-				"port": 4000,
-				"replicas": 1,
-				"resources": map[string]interface{}{
-					"limits": map[string]interface{}{
-						"cpu": "20m",
-						"memory": "85Mi",
-					},
-					"requests": map[string]interface{}{
-						"cpu": "15m",
-						"memory": "85Mi",
-					},
-				},
-				"tolerations": map[string]interface{}{
-					"environment": "prod",
-					"performance": "low",
-				},
-			},
-			"is_service_release": true,
-			"labels": map[string]interface{}{
-				"app": "manufacturing-holidays-api",
-				"env": "prod",
-				"tier": "web",
-			},
-			"service": map[string]interface{}{
-				"selector": map[string]interface{}{
-					"colour": "green",
-				},
-			},
-		},
+	vals := make(map[string]interface{})
+	err = goYaml.Unmarshal(chartValues, &vals)
+	if err != nil {
+		panic(err)
 	}
 
 	// Push values to upgrade request

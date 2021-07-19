@@ -3,3 +3,12 @@ appVersion: "2.0"
 description: A Helm chart for Kubernetes
 name: chart
 version: 0.2.0
+dependencies:
+  - name: blue-green-microservice
+    version: ">=0.11.34"
+    repository: https://chartmuseum.rnd.hutchison-rnd.co.uk
+    alias: bluegreen
+  - name: microservice
+    version: ">=0.3.44"
+    repository: https://chartmuseum.rnd.hutchison-rnd.co.uk
+    alias: microservice

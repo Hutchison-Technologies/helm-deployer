@@ -119,11 +119,11 @@ func RunBlueGreenDeploy() error {
 }
 
 func assertChartIsBlueGreen(chartDir string) {
-	requirementsYamlPath := charts.RequirementsYamlPath(chartDir)
-	log.Printf("Checking %s for blue-green-microservice dependency..", Green(requirementsYamlPath))
-	hasBlueGreenDependency := charts.HasDependency(requirementsYamlPath, "blue-green-microservice", "bluegreen")
+	chartYamlPath := charts.ChartYamlPath(chartDir)
+	log.Printf("Checking %s for blue-green-microservice dependency..", Green(chartYamlPath))
+	hasBlueGreenDependency := charts.HasDependency(chartYamlPath, "blue-green-microservice", "bluegreen")
 	if !hasBlueGreenDependency {
-		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency %s must be present and aliased to %s in the %s file in order to deploy using this program.", Green("blue-green-microservice"), Green("bluegreen"), Green(requirementsYamlPath))))
+		runtime.PanicIfError(errors.New(fmt.Sprintf("Dependency %s must be present and aliased to %s in the %s file in order to deploy using this program.", Green("blue-green-microservice"), Green("bluegreen"), Green(chartYamlPath))))
 	}
 }
 

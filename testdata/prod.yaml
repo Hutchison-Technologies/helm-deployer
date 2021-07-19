@@ -27,4 +27,4 @@ bluegreen:
       colour: blue
 microservice:
   deployment:
-    version: v0.0.88
+    version: v0.0.87
