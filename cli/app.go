@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	"bytes"
+	"bufio"
 	goYaml "github.com/ghodss/yaml"
 
 	"github.com/Hutchison-Technologies/helm-deployer/charts"
@@ -17,8 +19,8 @@ import (
 	"github.com/Hutchison-Technologies/helm-deployer/kubectl"
 	"github.com/Hutchison-Technologies/helm-deployer/runtime"
 
-	// "github.com/databus23/helm-diff/diff"
-	// "github.com/databus23/helm-diff/manifest"
+	"github.com/databus23/helm-diff/diff"
+	"github.com/databus23/helm-diff/manifest"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -151,24 +153,22 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	// Create new fetchManager to get information about existing releases
 	fetchManager := action.NewGet(helmConfig)
 	releaseContent, err := fetchManager.Run(releaseName)
-	//existingReleaseCode := release.StatusUnknown
+	existingReleaseCode := release.StatusUnknown
 
 	if releaseContent != nil {
 		log.Println("Found existing release:")
 		PrintRelease(releaseContent)
-		//existingReleaseCode = releaseContent.Info.Status
+		existingReleaseCode = releaseContent.Info.Status
 	}
 
-	// switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
-	// case deployment.ReleaseCourse.INSTALL:
+	switch deployment.DetermineReleaseCourse(releaseName, existingReleaseCode, err) {
+	case deployment.ReleaseCourse.INSTALL:
 		log.Println("No existing release found, installing release..")
-		log.Println("Chart Dir: ", chartDir)
 		
 		chart, err := loader.Load(fmt.Sprintf("%v/blue-green-microservice-0.11.35.tgz",chartDir))
 		if err != nil {
 			panic(err)
 		}
-		log.Println("Chart: ", chart)
 
 		duration, err := time.ParseDuration("300s")
 		if err != nil {
@@ -190,53 +190,48 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		vals := make(map[string]interface{})
 		err = goYaml.Unmarshal(chartValues, &vals)
 		if err != nil {
-			log.Println("HUH?")
 			panic(err)
 		}
 
-		log.Println("VALS: ", vals)
-
 		// Push values to chart and install
 		installResponse, err := installManager.Run(chart, vals)
-		
+		if err != nil {
+			return nil, err
+		}
+		log.Println("Installed release: ", installResponse)
+		return installResponse, nil
+	case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
+		log.Println("Dry-running release to obtain full manifest..")
+
+		dryRunRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
 		if err != nil {
 			return nil, err
 		}
 
-		return installResponse, nil
+		currentManifestString := string(releaseContent.Manifest)
+		newManifestString := string(dryRunRelease.Manifest)
 
-	// case deployment.ReleaseCourse.UPGRADE_WITH_DIFF_CHECK:
-	// 	log.Println("Dry-running release to obtain full manifest..")
+		currentManifests := manifest.Parse(currentManifestString, "default")
+		newManifests := manifest.Parse(newManifestString, "default")
 
-	// 	dryRunRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, true)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	currentManifestString := string(releaseContent.Manifest)
-	// 	newManifestString := string(dryRunRelease.Manifest)
-
-	// 	currentManifests := manifest.Parse(currentManifestString, "default")
-	// 	newManifests := manifest.Parse(newManifestString, "default")
-
-	// 	log.Println("Checking proposed release for changes against existing release..")
+		log.Println("Checking proposed release for changes against existing release..")
 		
-	// 	var b bytes.Buffer
-	// 	var manifestContext int = -1
+		var b bytes.Buffer
+		var manifestContext int = -1
 
-	// 	hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, bufio.NewWriter(&b))
-	// 	if !hasChanges {
-	// 		return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
-	// 	}
-	// 	fallthrough
-	// case deployment.ReleaseCourse.UPGRADE:
-		// log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
-		// upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// return upgradeRelease, nil
-	// }
+		hasChanges := diff.Manifests(currentManifests, newManifests, []string{}, false, manifestContext, bufio.NewWriter(&b))
+		if !hasChanges {
+			return nil, errors.New("No difference detected between this release and the existing release, no deploy.")
+		}
+		fallthrough
+	case deployment.ReleaseCourse.UPGRADE:
+		log.Printf("Upgrading release, will timeout after %d seconds..", RELEASE_UPGRADE_TIMEOUT)
+		upgradeRelease, err := upgradeRelease(helmConfig, releaseName, chartDir, chartValues, false)
+		if err != nil {
+			return nil, err
+		}
+		return upgradeRelease, nil
+	}
 
 	return nil, errors.New("Unknown release course")
 }
