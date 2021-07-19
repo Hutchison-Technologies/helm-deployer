@@ -68,4 +68,5 @@ require (
 	k8s.io/client-go v0.21.0 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
 	k8s.io/kubernetes v1.21.0 // indirect
+	sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 )
