@@ -185,7 +185,6 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 		installManager.Description = "Some chart"
 		// Disable when not testing...
 		installManager.DryRun = false
-		installManager.Replace = true
 
 
 		vals := make(map[string]interface{})
