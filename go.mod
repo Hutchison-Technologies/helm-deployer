@@ -63,11 +63,11 @@ require (
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	helm.sh/helm/v3 v3.6.3 // indirect
-	k8s.io/api v0.21.0 // indirect
-	k8s.io/apimachinery v0.21.0 // indirect
-	k8s.io/cli-runtime v0.21.0 // indirect
-	k8s.io/client-go v0.21.0 // indirect
+	k8s.io/api v0.18.0 // indirect
+	k8s.io/apimachinery v0.18.0 // indirect
+	k8s.io/cli-runtime v0.18.0 // indirect
+	k8s.io/client-go v0.18.0 // indirect
 	k8s.io/helm v2.17.0+incompatible // indirect
-	k8s.io/kubernetes v1.21.0 // indirect
+	k8s.io/kubernetes v1.18.0 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.11.0 // indirect
 )
