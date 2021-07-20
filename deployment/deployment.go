@@ -2,13 +2,11 @@ package deployment
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Hutchison-Technologies/helm-deployer/k8s"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"helm.sh/helm/v3/pkg/release"
-	storageerrors "k8s.io/helm/pkg/storage/errors"
 )
 
 type alias = int
@@ -35,7 +33,7 @@ func GetOfflineService(kubeClient v1.CoreV1Interface, targetEnv, appName string)
 }
 
 func DetermineReleaseCourse(releaseName string, statusCode release.Status, err error) int {
-	if err != nil && strings.Contains(err.Error(), storageerrors.ErrReleaseNotFound(releaseName).Error()) {
+	if err != nil && statusCode == release.StatusUnknown {
 		return ReleaseCourse.INSTALL
 	} else if statusCode == release.StatusUninstalled {
 		return ReleaseCourse.UPGRADE
