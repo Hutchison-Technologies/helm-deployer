@@ -165,10 +165,11 @@ func deployRelease(helmConfig *action.Configuration, releaseName, chartDir strin
 	case deployment.ReleaseCourse.INSTALL:
 		log.Println("No existing release found, installing release..")
 		
-		chart, err := loader.Load(fmt.Sprintf("%v/blue-green-microservice-0.11.35.tgz",chartDir))
+		chart, err := loader.Load(chartDir)
 		if err != nil {
 			panic(err)
 		}
+		log.Println("Chart: ", chart)
 
 		duration, err := time.ParseDuration("300s")
 		if err != nil {
@@ -242,6 +243,7 @@ func upgradeRelease(helmConfig *action.Configuration, releaseName, chartDir stri
     if err != nil {
         panic(err)
     }
+	log.Println("Chart: ", chart)
 
 	duration, err := time.ParseDuration("300s")
 	if err != nil {
