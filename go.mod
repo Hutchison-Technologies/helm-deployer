@@ -57,7 +57,7 @@ replace k8s.io/sample-controller => k8s.io/sample-controller v0.21.0
 require (
 	github.com/databus23/helm-diff v3.1.1+incompatible
 	github.com/ghodss/yaml v1.0.0
-	github.com/golang/protobuf v1.23.0
+	github.com/golang/protobuf v1.5.2
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/opencontainers/runc v1.0.0-rc10 // indirect
