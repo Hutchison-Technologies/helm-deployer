@@ -60,7 +60,7 @@ require (
 	github.com/golang/protobuf v1.5.1
 	github.com/mattn/go-isatty v0.0.9 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/opencontainers/runc v1.0.0-rc10 // indirect
+	github.com/opencontainers/runc v1.1.2 // indirect
 	github.com/stretchr/testify v1.7.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
 	helm.sh/helm/v3 v3.6.3
